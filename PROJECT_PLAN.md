@@ -63,6 +63,14 @@ keep frontend and backend in lockstep.
 - [x] Event detail page (`/events/[id]`) — header (name, date, location) + each
   race in the event rendered as a leaderboard (rank, runner, time, pace,
   category, bib). Reached by clicking an event card on the landing page.
+- [x] Public race registration form (`/register`). Anonymous (no login), takes
+  name + date of birth + gender + race. Race dropdown is restricted to races
+  whose event date is today or later. CTAs from the home hero, the top nav,
+  and the event detail page (upcoming events only) link in. Includes a
+  honeypot field as a first-pass bot filter — see open question below.
+- [ ] Real bot protection on `/register` (Cloudflare Turnstile or hCaptcha).
+  Honeypot alone won't survive a determined bot; pick a provider and wire
+  the token through to the backend before public launch.
 - [ ] Age-group + gender filters on the results table.
 - [ ] Per-runner share/print view of a single race result.
 - [ ] Empty-state and error-state designs (currently minimal).
@@ -100,6 +108,17 @@ keep frontend and backend in lockstep.
 - [ ] Auth (Cognito or equivalent — open question, see below).
 - [ ] `POST` / `PUT` endpoints for events, races, results.
 - [ ] CSV import for results (race-day workflow).
+
+### Phase B-public — Public-write endpoints
+
+- [x] `POST /registrations` — accepts `{ name, dateOfBirth, gender, raceId }`
+  for the public registration form. Currently logs + returns a stub ID;
+  persistence lands with B1's data model.
+- [ ] Validate that `raceId` exists and its event date is today or later
+  (currently the frontend enforces this; backend should not trust it).
+- [ ] Persist registrations to DynamoDB alongside the rest of the schema.
+- [ ] Verify the captcha token (Turnstile/hCaptcha — see F2) server-side
+  before accepting the registration.
 
 ### Phase B3 — Operational concerns (added when motivated)
 

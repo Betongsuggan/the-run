@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Users from '@lucide/svelte/icons/users';
+	import ClipboardPlus from '@lucide/svelte/icons/clipboard-plus';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import { getHello, listEvents, listRunners, type Hello } from '$lib/api';
 	import type { RaceEvent, Runner } from '$lib/types';
@@ -60,6 +61,13 @@
 				>
 					<Calendar class="size-4" />
 					{i18n.m.landing.ctaEvents}
+				</a>
+				<a
+					href={resolve('/register')}
+					class="btn preset-filled-secondary-500 inline-flex items-center gap-2"
+				>
+					<ClipboardPlus class="size-4" />
+					{i18n.m.landing.ctaRegister}
 				</a>
 				<a
 					href={resolve('/runners')}

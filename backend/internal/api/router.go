@@ -12,6 +12,7 @@ func Register(mux *http.ServeMux) huma.API {
 	api := humago.New(mux, config)
 
 	registerHello(api)
+	registerRegistrations(api)
 
 	return api
 }

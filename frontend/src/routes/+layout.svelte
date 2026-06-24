@@ -12,6 +12,7 @@
 
 	const isHome = $derived($page.url.pathname === '/');
 	const isRunners = $derived($page.url.pathname.startsWith('/runners'));
+	const isRegister = $derived($page.url.pathname.startsWith('/register'));
 
 	$effect(() => {
 		if (typeof document !== 'undefined') {
@@ -52,6 +53,14 @@
 						class="rounded-full px-3 py-1.5 transition-colors {isRunners
 							? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200 font-semibold'
 							: 'opacity-80 hover:opacity-100 hover:bg-surface-100-900'}">{i18n.m.nav.runners}</a
+					>
+				</li>
+				<li>
+					<a
+						href={resolve('/register')}
+						class="rounded-full px-3 py-1.5 transition-colors {isRegister
+							? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200 font-semibold'
+							: 'opacity-80 hover:opacity-100 hover:bg-surface-100-900'}">{i18n.m.nav.register}</a
 					>
 				</li>
 			</ul>

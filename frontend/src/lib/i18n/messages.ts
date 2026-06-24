@@ -12,6 +12,7 @@ const sv = {
 		brand: 'Ingmarsöloppet',
 		home: 'Hem',
 		runners: 'Löpare',
+		register: 'Anmäl dig',
 		language: 'Språk',
 		theme: 'Tema',
 		themeLight: 'Ljust',
@@ -24,6 +25,7 @@ const sv = {
 		heroTagline: 'Löparglädje i Stockholms skärgård — resultat, statistik och historik från varje upplaga.',
 		ctaEvents: 'Se loppen',
 		ctaRunners: 'Bläddra bland löpare',
+		ctaRegister: 'Anmäl dig till ett lopp',
 		mockTitle: 'Mockdata-läge',
 		mockDescription:
 			'Sidorna nedan visar handgjorda exempel. Backend ansluts när UI-formen är fastställd.',
@@ -127,6 +129,25 @@ const sv = {
 		paceHelp: 'Lägre är snabbare. Håll muspekaren över punkterna för detaljer.',
 		noRunsYet: 'Inga löpresultat än.',
 		noResultsYet: 'Inga resultat än.'
+	},
+	register: {
+		heading: 'Anmäl dig till loppet',
+		subheading: 'Fyll i dina uppgifter och välj vilket lopp du vill springa.',
+		nameLabel: 'Namn',
+		namePlaceholder: 't.ex. Anna Andersson',
+		dobLabel: 'Födelsedatum',
+		genderLabel: 'Kön',
+		raceLabel: 'Lopp',
+		racePlaceholder: 'Välj ett kommande lopp',
+		submit: 'Skicka anmälan',
+		submitting: 'Skickar…',
+		successHeading: 'Tack — vi har tagit emot din anmälan!',
+		successBody: 'Vi hör av oss med mer information inför loppet.',
+		registerAnother: 'Anmäl en till',
+		noUpcomingRaces: 'Det finns inga kommande lopp att anmäla sig till just nu.',
+		eventPast: 'Det här loppet har redan ägt rum och går inte att anmäla sig till.',
+		errorPrefix: 'Något gick fel:',
+		botProtectionNote: 'Skyddat mot automatisk registrering.'
 	},
 	admin: {
 		title: 'Admin',
@@ -287,6 +308,7 @@ const en: Catalog = {
 		brand: 'Ingmarsöloppet',
 		home: 'Home',
 		runners: 'Runners',
+		register: 'Sign up',
 		language: 'Language',
 		theme: 'Theme',
 		themeLight: 'Light',
@@ -300,6 +322,7 @@ const en: Catalog = {
 			"Running joy in Stockholm's archipelago — results, stats and history from every edition.",
 		ctaEvents: 'View events',
 		ctaRunners: 'Browse runners',
+		ctaRegister: 'Sign up for a race',
 		mockTitle: 'Mock data mode',
 		mockDescription:
 			'The pages below render hand-rolled fixtures. The backend will be wired up after the UI shape is locked in.',
@@ -403,6 +426,25 @@ const en: Catalog = {
 		paceHelp: 'Lower is faster. Hover points for race details.',
 		noRunsYet: 'No run results yet.',
 		noResultsYet: 'No results yet.'
+	},
+	register: {
+		heading: 'Sign up for a race',
+		subheading: 'Fill in your details and pick which race you want to run.',
+		nameLabel: 'Name',
+		namePlaceholder: 'e.g. Anna Andersson',
+		dobLabel: 'Date of birth',
+		genderLabel: 'Gender',
+		raceLabel: 'Race',
+		racePlaceholder: 'Pick an upcoming race',
+		submit: 'Submit registration',
+		submitting: 'Submitting…',
+		successHeading: "Thanks — we've received your registration!",
+		successBody: "We'll be in touch with more information ahead of the race.",
+		registerAnother: 'Sign someone else up',
+		noUpcomingRaces: 'There are no upcoming races to sign up for right now.',
+		eventPast: 'This race has already taken place and is no longer open for sign-ups.',
+		errorPrefix: 'Something went wrong:',
+		botProtectionNote: 'Protected against automated sign-ups.'
 	},
 	admin: {
 		title: 'Admin',

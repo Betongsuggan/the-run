@@ -22,6 +22,42 @@ export async function getHello(fetchImpl: typeof fetch = fetch): Promise<Hello> 
 	return (await res.json()) as Hello;
 }
 
+export type RegisterForRaceInput = {
+	name: string;
+	dateOfBirth: string; // YYYY-MM-DD
+	gender: 'M' | 'F' | 'X';
+	raceId: string;
+	// Honeypot — frontend always sends ''. See registrations.go on the backend.
+	website?: string;
+};
+
+export type RegisterForRaceResult = {
+	id: string;
+	status: string;
+};
+
+export async function registerForRace(
+	input: RegisterForRaceInput,
+	fetchImpl: typeof fetch = fetch
+): Promise<RegisterForRaceResult> {
+	const res = await fetchImpl(`${PUBLIC_API_BASE_URL}/registrations`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ website: '', ...input })
+	});
+	if (!res.ok) {
+		let detail = '';
+		try {
+			const body = await res.json();
+			if (body && typeof body.detail === 'string') detail = `: ${body.detail}`;
+		} catch {
+			/* ignore */
+		}
+		throw new Error(`POST /registrations failed: HTTP ${res.status}${detail}`);
+	}
+	return (await res.json()) as RegisterForRaceResult;
+}
+
 type FinishedRegistration = Registration & { finishSeconds: number };
 
 function isFinished(reg: Registration): reg is FinishedRegistration {

@@ -5,6 +5,7 @@
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import Trophy from '@lucide/svelte/icons/trophy';
+	import ClipboardPlus from '@lucide/svelte/icons/clipboard-plus';
 	import { getEvent, listRacesForEvent, listResultsForRace } from '$lib/api';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { formatDate } from '$lib/format';
@@ -19,6 +20,12 @@
 	let event: RaceEvent | undefined = $state(undefined);
 	let boards: Board[] = $state([]);
 	let loading = $state(true);
+
+	const today = new Date().toISOString().slice(0, 10);
+	const isUpcoming = $derived.by(() => {
+		const e = event;
+		return e ? e.date >= today : false;
+	});
 
 	$effect(() => {
 		const id = $page.params.id;
@@ -85,6 +92,17 @@
 						</span>
 					{/if}
 				</div>
+				{#if isUpcoming}
+					<div class="mt-5">
+						<a
+							href={resolve(`/register?eventId=${event.id}`)}
+							class="btn preset-filled-primary-500 inline-flex items-center gap-2"
+						>
+							<ClipboardPlus class="size-4" />
+							{i18n.m.nav.register}
+						</a>
+					</div>
+				{/if}
 			</div>
 		</Hero>
 
