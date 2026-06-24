@@ -3,4 +3,6 @@ config:
   the-run:domain: rydback.net
   the-run:apiSubdomain: api
   the-run:siteSubdomain: running
-  the-run:createHostedZone: "true"
+  the-run:createHostedZone: "false"
+secretsprovider: awskms://alias/the-run-pulumi-secrets?region=eu-north-1
+encryptedkey: AQICAHgwjfpeAElbxBTEIhmbU0pGVRs9NJlhs0R2OlOYDC2tSgHhOeLQ+DTXlN893cNUPmL4AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM/76rxj8ClKmyxwJtAgEQgDsBQvHo0jbEk1HHi22QMP9VrJAJHYuRUlRbW/K4Fu6xqOaJYf7w9t9g6VFw2YJNge5mdtOlL5W+Dhhf5w==

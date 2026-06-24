@@ -16,9 +16,6 @@ type apiResources struct {
 	apiDomain *apigatewayv2.DomainName
 }
 
-// setupAPI provisions the Lambda (with its IAM role), the API Gateway v2 HTTP
-// API and routes proxying to that Lambda, and the regional custom domain bound
-// to the API's $default stage.
 func setupAPI(
 	ctx *pulumi.Context,
 	apiFQDN, siteFQDN string,
@@ -38,12 +35,14 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	lambdaRole, err := iam.NewRole(ctx, "lambda-role", &iam.RoleArgs{
 		AssumeRolePolicy: pulumi.String(string(assumePolicy)),
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = iam.NewRolePolicyAttachment(ctx, "lambda-basic-exec", &iam.RolePolicyAttachmentArgs{
 		Role:      lambdaRole.Name,
 		PolicyArn: pulumi.String("arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"),
@@ -52,9 +51,9 @@ func setupAPI(
 		return nil, err
 	}
 
-	// Expects ../backend/dist/lambda.zip prebuilt.
 	fn, err := awslambda.NewFunction(ctx, "api-fn", &awslambda.FunctionArgs{
 		Role:          lambdaRole.Arn,
+		Name:          pulumi.String("backend-api"),
 		Runtime:       pulumi.String("provided.al2023"),
 		Architectures: pulumi.StringArray{pulumi.String("arm64")},
 		Handler:       pulumi.String("bootstrap"),
@@ -84,6 +83,7 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	integration, err := apigatewayv2.NewIntegration(ctx, "api-integration", &apigatewayv2.IntegrationArgs{
 		ApiId:                api.ID(),
 		IntegrationType:      pulumi.String("AWS_PROXY"),
@@ -94,6 +94,7 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = apigatewayv2.NewRoute(ctx, "api-route-default", &apigatewayv2.RouteArgs{
 		ApiId:    api.ID(),
 		RouteKey: pulumi.String("ANY /{proxy+}"),
@@ -102,6 +103,7 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = apigatewayv2.NewRoute(ctx, "api-route-root", &apigatewayv2.RouteArgs{
 		ApiId:    api.ID(),
 		RouteKey: pulumi.String("ANY /"),
@@ -110,6 +112,7 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	stage, err := apigatewayv2.NewStage(ctx, "api-stage", &apigatewayv2.StageArgs{
 		ApiId:      api.ID(),
 		Name:       pulumi.String("$default"),
@@ -118,6 +121,7 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = awslambda.NewPermission(ctx, "api-invoke-lambda", &awslambda.PermissionArgs{
 		Action:    pulumi.String("lambda:InvokeFunction"),
 		Function:  fn.Name,
@@ -139,6 +143,7 @@ func setupAPI(
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = apigatewayv2.NewApiMapping(ctx, "api-mapping", &apigatewayv2.ApiMappingArgs{
 		ApiId:      api.ID(),
 		DomainName: apiDomain.ID(),

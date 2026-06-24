@@ -33,7 +33,6 @@ just sso-login                 # aws sso login + sts get-caller-identity
 just whoami                    # show the active AWS identity
 just bootstrap-pulumi-state    # one-time: S3 bucket for Pulumi state + pulumi login
 just pulumi-login              # pulumi login to this account's state bucket
-just pulumi <args...>          # run any pulumi command with SSO creds exported
 
 just dev-backend         # Go API on :8080
 just dev-frontend        # SvelteKit dev server on :5173
@@ -69,20 +68,15 @@ nix develop
 
 (or `direnv allow` if you use direnv — `.envrc` is wired up.)
 
-If you use direnv, copy the local-overrides template to drop in your Pulumi
-passphrase (and optionally a non-default `AWS_PROFILE`):
+`.envrc` exports `AWS_PROFILE`, materializes your SSO credentials, and points
+`PULUMI_SECRETS_PROVIDER` at the project's KMS key every time you `cd` into
+the repo — so `pulumi`, `aws`, and the Justfile recipes all work without
+manual exports. No personal overrides are required out of the box; if you
+want a different `AWS_PROFILE` or a different secrets provider, copy
+`.envrc.local.example` to `.envrc.local` and edit it.
 
-```sh
-cp .envrc.local.example .envrc.local
-$EDITOR .envrc.local          # set PULUMI_CONFIG_PASSPHRASE
-direnv allow
-```
-
-With this in place, `.envrc` will export `AWS_PROFILE`, materialize your SSO
-credentials, and set `PULUMI_CONFIG_PASSPHRASE` every time you `cd` into the
-repo — so `pulumi`, `aws`, and the Justfile recipes all work without manual
-exports. After `just sso-login`, run `direnv reload` (or `cd .`) to pick up
-the refreshed credentials.
+After `just sso-login`, run `direnv reload` (or `cd .`) to pick up the
+refreshed credentials.
 
 ### 2. AWS credentials
 
@@ -121,40 +115,43 @@ just sso-login    # aws sso login + sts get-caller-identity for $AWS_PROFILE
 
 Never commit credentials.
 
-### 3. Bootstrap the Pulumi state bucket
+### 3. Bootstrap the Pulumi state, secrets key, and stack
 
-Pulumi state is self-hosted in S3. The bucket has to exist before
-`pulumi login`. This is a one-time step per AWS account, wrapped in a recipe:
-
-```sh
-just bootstrap-pulumi-state
-```
-
-The recipe creates `the-run-pulumi-state-<ACCOUNT_ID>` in `eu-north-1` with
-versioning, SSE-S3 encryption, and public access fully blocked, then runs
-`pulumi login` against it. It's idempotent — re-running is safe and will
-re-assert the bucket settings.
-
-Pick a strong passphrase and stash it in your password manager — Pulumi uses
-it to encrypt secrets in stack state (replaces the role Pulumi Cloud plays
-when using its managed backend).
+Pulumi state is self-hosted in S3, and stack secrets are encrypted with an
+AWS KMS key. One recipe creates all of it and initializes the Pulumi stack:
 
 ```sh
-export PULUMI_CONFIG_PASSPHRASE="<your-passphrase>"
+just bootstrap-pulumi-state            # initializes the 'dev' stack
+just bootstrap-pulumi-state prod       # or pass a stack name
 ```
+
+It does, idempotently:
+
+- Creates `s3://the-run-pulumi-state-<ACCOUNT_ID>` in `eu-north-1` with
+  versioning, SSE-S3 encryption, and public access fully blocked — and
+  runs `pulumi login` against it.
+- Creates a KMS key with alias `alias/the-run-pulumi-secrets` and yearly
+  automatic rotation enabled — used as the Pulumi secrets provider so
+  stacks never need a passphrase.
+- Runs `pulumi stack init organization/the-run/<stack>` against that KMS
+  key, unless the stack already exists.
+
+Re-running is safe: existing bucket / key / stack are detected and skipped.
+`.envrc` exports `PULUMI_SECRETS_PROVIDER` pointing at the KMS alias so
+ad-hoc `pulumi stack init` calls (e.g. for a new stack) don't need the URL
+retyped.
 
 ### 4. Configure the stack
 
-Use `just pulumi` (wraps `pulumi -C infra` and exports SSO credentials —
-Pulumi's S3 backend won't auto-resolve them otherwise):
+The stack was created by `just bootstrap-pulumi-state` — now set its config:
 
 ```sh
-just pulumi stack init dev
-just pulumi config set the-run:domain        example.com   # ← your domain
-just pulumi config set the-run:apiSubdomain  api
-just pulumi config set the-run:siteSubdomain ""            # apex; or "www"
-just pulumi config set the-run:createHostedZone true
-just pulumi config set aws:region            eu-north-1
+cd infra
+pulumi config set the-run:domain        example.com   # ← your domain
+pulumi config set the-run:apiSubdomain  api
+pulumi config set the-run:siteSubdomain ""            # apex; or "www"
+pulumi config set the-run:createHostedZone true
+pulumi config set aws:region            eu-north-1
 ```
 
 If your Route53 hosted zone already exists, set

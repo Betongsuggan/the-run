@@ -22,15 +22,21 @@ whoami:
 
 # ─── Bootstrap ────────────────────────────────────────────────────────
 
-# Create (if needed) and configure the S3 bucket Pulumi uses for state, then
-# `pulumi login` to it. Idempotent — safe to re-run. One-time per AWS account.
-bootstrap-pulumi-state region='eu-north-1':
+# Create (if needed) the S3 state bucket, the KMS key for Pulumi stack
+# secrets, `pulumi login`, and initialize the Pulumi stack. Idempotent —
+# safe to re-run. One-time per AWS account (+ one-time per stack name).
+bootstrap-pulumi-state stack='dev' region='eu-north-1':
     #!/usr/bin/env bash
     set -euo pipefail
     ACCT=$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)
     BUCKET="the-run-pulumi-state-$ACCT"
     REGION="{{region}}"
+    KMS_ALIAS="alias/the-run-pulumi-secrets"
+    KMS_URL="awskms://$KMS_ALIAS?region=$REGION"
+    STACK="{{stack}}"
+    QUALIFIED_STACK="organization/the-run/$STACK"
 
+    # --- S3 bucket for Pulumi state -----------------------------------------
     if aws s3api head-bucket --profile "$AWS_PROFILE" --bucket "$BUCKET" 2>/dev/null; then
       echo "Bucket s3://$BUCKET already exists — skipping create."
     else
@@ -52,7 +58,32 @@ bootstrap-pulumi-state region='eu-north-1':
       --server-side-encryption-configuration \
       '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
+    # --- KMS key for Pulumi stack secrets -----------------------------------
+    if aws kms describe-key --profile "$AWS_PROFILE" --region "$REGION" --key-id "$KMS_ALIAS" >/dev/null 2>&1; then
+      echo "KMS key $KMS_ALIAS already exists — skipping create."
+    else
+      echo "Creating KMS key $KMS_ALIAS in $REGION ..."
+      KEY_ID=$(aws kms create-key --profile "$AWS_PROFILE" --region "$REGION" \
+        --description "Pulumi stack secrets for the-run" \
+        --tags "TagKey=Project,TagValue=the-run" \
+        --query 'KeyMetadata.KeyId' --output text)
+      aws kms create-alias --profile "$AWS_PROFILE" --region "$REGION" \
+        --alias-name "$KMS_ALIAS" --target-key-id "$KEY_ID"
+      aws kms enable-key-rotation --profile "$AWS_PROFILE" --region "$REGION" --key-id "$KEY_ID"
+    fi
+
+    # --- Pulumi backend + stack ---------------------------------------------
     pulumi login "s3://$BUCKET?region=$REGION"
+
+    # Materialize SSO creds so `pulumi stack init` can read/write S3 + KMS.
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+
+    if pulumi -C infra stack select "$STACK" >/dev/null 2>&1; then
+      echo "Pulumi stack $STACK already initialized — skipping."
+    else
+      echo "Initializing Pulumi stack $QUALIFIED_STACK with KMS secrets provider ..."
+      pulumi -C infra stack init --secrets-provider="$KMS_URL" "$QUALIFIED_STACK"
+    fi
 
 # Log Pulumi in to this account's S3 state bucket. Run after
 # `bootstrap-pulumi-state` (e.g. on a new machine, or after `pulumi logout`).
@@ -61,15 +92,6 @@ pulumi-login region='eu-north-1':
     set -euo pipefail
     ACCT=$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)
     pulumi login "s3://the-run-pulumi-state-$ACCT?region={{region}}"
-
-# Run any pulumi command in infra/ with SSO credentials exported. Use this for
-# anything not already wrapped in a recipe (e.g. `just pulumi stack init dev`,
-# `just pulumi config set the-run:domain example.com`).
-pulumi *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
-    pulumi -C infra {{args}}
 
 # ─── Local dev ─────────────────────────────────────────────────────────
 

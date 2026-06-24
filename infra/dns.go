@@ -127,18 +127,8 @@ func setupAliasRecords(
 		}
 	}
 
-	apiTargetName := apiDomain.DomainNameConfiguration.ApplyT(func(c *apigatewayv2.DomainNameDomainNameConfiguration) string {
-		if c == nil || c.TargetDomainName == nil {
-			return ""
-		}
-		return *c.TargetDomainName
-	}).(pulumi.StringOutput)
-	apiTargetZoneID := apiDomain.DomainNameConfiguration.ApplyT(func(c *apigatewayv2.DomainNameDomainNameConfiguration) string {
-		if c == nil || c.HostedZoneId == nil {
-			return ""
-		}
-		return *c.HostedZoneId
-	}).(pulumi.StringOutput)
+	apiTargetName := apiDomain.DomainNameConfiguration.TargetDomainName().Elem()
+	apiTargetZoneID := apiDomain.DomainNameConfiguration.HostedZoneId().Elem()
 	_, err = route53.NewRecord(ctx, "api-a", &route53.RecordArgs{
 		ZoneId: zoneID,
 		Name:   pulumi.String(apiFQDN),
