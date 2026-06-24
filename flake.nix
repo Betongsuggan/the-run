@@ -15,8 +15,9 @@
           go
           gopls
           gotools
+          golangci-lint
 
-          nodejs_20
+          nodejs_22
           pnpm
 
           pulumi
@@ -24,6 +25,7 @@
 
           awscli2
 
+          just
           zip
           jq
           curl

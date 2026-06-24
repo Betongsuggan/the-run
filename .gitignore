@@ -12,6 +12,7 @@ backend/bootstrap
 node_modules/
 .svelte-kit/
 frontend/build/
+frontend/coverage/
 frontend/.env
 frontend/.env.*
 !frontend/.env.example

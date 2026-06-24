@@ -23,6 +23,32 @@ infra/      # Pulumi Go program
 flake.nix   # dev shell: go, node, pnpm, pulumi, awscli, ...
 ```
 
+## Tasks
+
+Common workflows are wired into a `Justfile` at the repo root. Run `just` to
+list every recipe:
+
+```sh
+just dev-backend         # Go API on :8080
+just dev-frontend        # SvelteKit dev server on :5173
+
+just build-lambda        # backend/dist/lambda.zip
+just build-frontend prod # frontend/build/ pointing at api.<DOMAIN>
+just build               # both, ready for `pulumi up`
+
+just lint                # golangci-lint + eslint
+just fix                 # gofmt + eslint --fix + prettier
+just test                # go test + vitest
+just check               # lint + format-check + typecheck + tests
+
+just deploy              # build + pulumi up
+just invalidate          # bust the CloudFront cache
+just verify              # curl https://api.<DOMAIN>/hello
+```
+
+The sections below explain what these recipes do under the hood — useful when
+something breaks or you need to deviate from the happy path.
+
 ## First-time setup
 
 ### 1. Enter the dev shell
