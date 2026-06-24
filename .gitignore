@@ -1,0 +1,29 @@
+# Nix / direnv
+.direnv/
+result
+result-*
+
+# Go
+backend/dist/
+backend/*.zip
+backend/bootstrap
+
+# Node / SvelteKit
+node_modules/
+.svelte-kit/
+frontend/build/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Pulumi
+infra/.pulumi/
+infra/Pulumi.*.yaml.bak
+infra/infra
+infra/bin/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp

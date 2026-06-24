@@ -1,0 +1,6 @@
+config:
+  aws:region: eu-north-1
+  the-run:domain: example.com
+  the-run:apiSubdomain: api
+  the-run:siteSubdomain: ""
+  the-run:createHostedZone: "true"

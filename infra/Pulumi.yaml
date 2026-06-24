@@ -1,0 +1,3 @@
+name: the-run
+runtime: go
+description: Infrastructure for the-run (Lambda + API Gateway + S3 + CloudFront + Route53)
