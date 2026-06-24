@@ -29,8 +29,10 @@ Common workflows are wired into a `Justfile` at the repo root. Run `just` to
 list every recipe:
 
 ```sh
-just sso-login           # aws sso login + sts get-caller-identity
-just whoami              # show the active AWS identity
+just sso-login                 # aws sso login + sts get-caller-identity
+just whoami                    # show the active AWS identity
+just bootstrap-pulumi-state    # one-time: S3 bucket for Pulumi state + pulumi login
+just pulumi-login              # pulumi login to this account's state bucket
 
 just dev-backend         # Go API on :8080
 just dev-frontend        # SvelteKit dev server on :5173
@@ -106,26 +108,16 @@ Never commit credentials.
 ### 3. Bootstrap the Pulumi state bucket
 
 Pulumi state is self-hosted in S3. The bucket has to exist before
-`pulumi login`. This is a one-time step per AWS account.
+`pulumi login`. This is a one-time step per AWS account, wrapped in a recipe:
 
 ```sh
-ACCT=$(aws sts get-caller-identity --query Account --output text)
-REGION=eu-north-1
-BUCKET="the-run-pulumi-state-$ACCT"
-
-aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" \
-  --create-bucket-configuration LocationConstraint="$REGION"
-aws s3api put-bucket-versioning --bucket "$BUCKET" \
-  --versioning-configuration Status=Enabled
-aws s3api put-public-access-block --bucket "$BUCKET" \
-  --public-access-block-configuration \
-  "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicAccess=true"
-aws s3api put-bucket-encryption --bucket "$BUCKET" \
-  --server-side-encryption-configuration \
-  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-
-pulumi login "s3://$BUCKET?region=$REGION"
+just bootstrap-pulumi-state
 ```
+
+The recipe creates `the-run-pulumi-state-<ACCOUNT_ID>` in `eu-north-1` with
+versioning, SSE-S3 encryption, and public access fully blocked, then runs
+`pulumi login` against it. It's idempotent — re-running is safe and will
+re-assert the bucket settings.
 
 Pick a strong passphrase and stash it in your password manager — Pulumi uses
 it to encrypt secrets in stack state (replaces the role Pulumi Cloud plays

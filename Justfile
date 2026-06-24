@@ -20,6 +20,48 @@ whoami:
     @echo "AWS_PROFILE=$AWS_PROFILE"
     aws sts get-caller-identity --profile "$AWS_PROFILE"
 
+# ─── Bootstrap ────────────────────────────────────────────────────────
+
+# Create (if needed) and configure the S3 bucket Pulumi uses for state, then
+# `pulumi login` to it. Idempotent — safe to re-run. One-time per AWS account.
+bootstrap-pulumi-state region='eu-north-1':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ACCT=$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)
+    BUCKET="the-run-pulumi-state-$ACCT"
+    REGION="{{region}}"
+
+    if aws s3api head-bucket --profile "$AWS_PROFILE" --bucket "$BUCKET" 2>/dev/null; then
+      echo "Bucket s3://$BUCKET already exists — skipping create."
+    else
+      echo "Creating s3://$BUCKET in $REGION ..."
+      aws s3api create-bucket --profile "$AWS_PROFILE" \
+        --bucket "$BUCKET" --region "$REGION" \
+        --create-bucket-configuration LocationConstraint="$REGION"
+    fi
+
+    aws s3api put-bucket-versioning --profile "$AWS_PROFILE" \
+      --bucket "$BUCKET" \
+      --versioning-configuration Status=Enabled
+    aws s3api put-public-access-block --profile "$AWS_PROFILE" \
+      --bucket "$BUCKET" \
+      --public-access-block-configuration \
+      "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+    aws s3api put-bucket-encryption --profile "$AWS_PROFILE" \
+      --bucket "$BUCKET" \
+      --server-side-encryption-configuration \
+      '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+    pulumi login "s3://$BUCKET?region=$REGION"
+
+# Log Pulumi in to this account's S3 state bucket. Run after
+# `bootstrap-pulumi-state` (e.g. on a new machine, or after `pulumi logout`).
+pulumi-login region='eu-north-1':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ACCT=$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)
+    pulumi login "s3://the-run-pulumi-state-$ACCT?region={{region}}"
+
 # ─── Local dev ─────────────────────────────────────────────────────────
 
 # Run the Go API locally on :8080
