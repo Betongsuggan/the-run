@@ -1,6 +1,6 @@
 config:
   aws:region: eu-north-1
-  the-run:domain: example.com
+  the-run:domain: rydback.net
   the-run:apiSubdomain: api
-  the-run:siteSubdomain: ""
+  the-run:siteSubdomain: running
   the-run:createHostedZone: "true"

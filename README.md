@@ -136,14 +136,14 @@ If your Route53 hosted zone already exists, set
 ## Day-to-day: local dev
 
 ```sh
-# terminal 1 — backend on :8080
-cd backend
-go run ./cmd/api
+# one-time: point the SvelteKit dev server at the local API
+cp frontend/.env.example frontend/.env.local   # PUBLIC_API_BASE_URL=http://localhost:8080
 
-# terminal 2 — frontend on :5173 pointing at local backend
-cd frontend
-cp .env.example .env.local      # PUBLIC_API_BASE_URL=http://localhost:8080
-pnpm dev
+# terminal 1 — Go API on :8080
+just dev-backend
+
+# terminal 2 — SvelteKit on :5173
+just dev-frontend
 ```
 
 Open <http://localhost:5173>. The page should render `Hello from the-run @ <timestamp>`.
@@ -152,23 +152,13 @@ Huma docs at <http://localhost:8080/docs>.
 
 ## Deploy
 
-Order matters: Lambda zip and frontend build have to exist before `pulumi up`.
+`just deploy` builds the Lambda zip, builds the frontend wired to
+`https://api.<DOMAIN>` (domain read from `pulumi config`), and runs
+`pulumi -C infra up`. Use `just deploy-preview` to see the diff without
+applying.
 
 ```sh
-# 1. Build the Lambda zip.
-cd backend
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
-  go build -tags lambda.norpc -ldflags="-s -w" -o dist/bootstrap ./cmd/api
-( cd dist && zip -9 lambda.zip bootstrap )
-
-# 2. Build the frontend with the production API URL.
-cd ../frontend
-DOMAIN=$(cd ../infra && pulumi config get the-run:domain)
-PUBLIC_API_BASE_URL="https://api.$DOMAIN" pnpm build
-
-# 3. Deploy.
-cd ../infra
-pulumi up
+just deploy
 ```
 
 ### First deploy only — register your domain's nameservers
@@ -185,21 +175,13 @@ longer).
 After redeploying the frontend, bust CloudFront's cache:
 
 ```sh
-aws cloudfront create-invalidation \
-  --distribution-id "$(pulumi -C infra stack output cloudFrontDistributionId)" \
-  --paths '/*'
+just invalidate
 ```
 
 ## Verifying the deploy
 
 ```sh
-DOMAIN=$(pulumi -C infra config get the-run:domain)
-
-curl -s "https://api.$DOMAIN/hello" | jq .
-# {"message":"Hello from the-run","timestamp":"..."}
-
-open "https://api.$DOMAIN/docs"     # Huma's OpenAPI UI
-open "https://$DOMAIN"               # the SvelteKit page
+just verify   # curls https://api.<DOMAIN>/hello and prints site + docs URLs
 ```
 
 ## What's deliberately not here yet
