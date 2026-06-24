@@ -7,12 +7,12 @@ export const locales: ReadonlyArray<{ code: Locale; name: string }> = [
 
 const sv = {
 	nav: {
-		brand: 'the-run',
+		brand: 'Ingmarsöloppet',
 		home: 'Hem',
 		runners: 'Löpare',
 		language: 'Språk'
 	},
-	footer: 'the-run · mockdata — backend ej ansluten',
+	footer: 'Ingmarsöloppet · mockdata — backend ej ansluten',
 	landing: {
 		description: 'En plattform för att visa löparresultat från årliga lopp.',
 		mockTitle: 'Mockdata-läge',
@@ -113,12 +113,12 @@ type Catalog = typeof sv;
 
 const en: Catalog = {
 	nav: {
-		brand: 'the-run',
+		brand: 'Ingmarsöloppet',
 		home: 'Home',
 		runners: 'Runners',
 		language: 'Language'
 	},
-	footer: 'the-run · mock data — backend not yet wired',
+	footer: 'Ingmarsöloppet · mock data — backend not yet wired',
 	landing: {
 		description: 'A platform for viewing runner race results across yearly events.',
 		mockTitle: 'Mock data mode',

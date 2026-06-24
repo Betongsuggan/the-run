@@ -10,14 +10,14 @@ export const runners: Runner[] = [
 export const events: RaceEvent[] = [
 	{
 		id: 'e-2025',
-		name: 'The Run 2025',
+		name: 'Ingmarsöloppet 2025',
 		year: 2025,
 		date: '2025-06-14',
 		location: 'Stockholm'
 	},
 	{
 		id: 'e-2026',
-		name: 'The Run 2026',
+		name: 'Ingmarsöloppet 2026',
 		year: 2026,
 		date: '2026-06-13',
 		location: 'Stockholm'
