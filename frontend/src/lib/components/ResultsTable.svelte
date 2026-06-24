@@ -3,7 +3,14 @@
 	import { resolve } from '$app/paths';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import type { Discipline, ResultExpanded } from '$lib/types';
-	import { formatDate, formatDistance, formatPace, formatTime } from '$lib/format';
+	import {
+		formatCategory,
+		formatDate,
+		formatDistance,
+		formatPace,
+		formatRaceName,
+		formatTime
+	} from '$lib/format';
 
 	let { results }: { results: ResultExpanded[] } = $props();
 
@@ -122,7 +129,7 @@
 					>
 						<td class="font-mono text-sm">{formatDate(result.event.date)}</td>
 						<td>
-							<div class="font-medium">{result.race.name}</div>
+							<div class="font-medium">{formatRaceName(result.race)}</div>
 							<div class="text-xs opacity-70">{result.event.name}</div>
 						</td>
 						<td>{formatDistance(result.race.distanceMeters)}</td>
@@ -136,7 +143,7 @@
 								{#if result.placementCategory}
 									<span class="text-xs opacity-70">
 										({result.placementCategory}
-										{result.category.ageGroup ?? ''})
+										{formatCategory(result.category)})
 									</span>
 								{/if}
 							{:else}

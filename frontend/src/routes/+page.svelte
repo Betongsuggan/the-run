@@ -1,10 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import Calendar from '@lucide/svelte/icons/calendar';
+	import Users from '@lucide/svelte/icons/users';
+	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import { getHello, listEvents, listRunners, type Hello } from '$lib/api';
 	import type { RaceEvent, Runner } from '$lib/types';
-	import { formatDate } from '$lib/format';
 	import { i18n } from '$lib/i18n/state.svelte';
+	import Hero from '$lib/components/Hero.svelte';
+	import EventCard from '$lib/components/EventCard.svelte';
+	import RunnerCard from '$lib/components/RunnerCard.svelte';
+	import SectionHeader from '$lib/components/SectionHeader.svelte';
+	import SunBurst from '$lib/illustrations/SunBurst.svelte';
+	import ArchipelagoSilhouette from '$lib/illustrations/ArchipelagoSilhouette.svelte';
+	import WaveDivider from '$lib/illustrations/WaveDivider.svelte';
 
 	let apiState:
 		| { kind: 'loading' }
@@ -26,55 +35,72 @@
 	});
 </script>
 
-<section class="space-y-8">
-	<header>
-		<h1 class="h1">{i18n.m.nav.brand}</h1>
-		<p class="opacity-80 mt-2">{i18n.m.landing.description}</p>
-	</header>
+<section class="space-y-10">
+	<Hero>
+		{#snippet background()}
+			<SunBurst class="absolute -top-12 -right-12 size-72 text-tertiary-500 opacity-70" />
+			<ArchipelagoSilhouette
+				class="absolute inset-x-0 bottom-0 h-24 w-full text-success-700 dark:text-success-300"
+			/>
+		{/snippet}
+		<div class="max-w-2xl">
+			<h1
+				class="text-4xl sm:text-5xl font-semibold tracking-tight leading-tight"
+				style="font-family: var(--heading-font-family);"
+			>
+				{i18n.m.nav.brand}
+			</h1>
+			<p class="mt-4 text-base sm:text-lg opacity-85 max-w-xl">
+				{i18n.m.landing.heroTagline}
+			</p>
+			<div class="mt-6 flex flex-wrap gap-3">
+				<a
+					href="#events"
+					class="btn preset-filled-primary-500 inline-flex items-center gap-2"
+				>
+					<Calendar class="size-4" />
+					{i18n.m.landing.ctaEvents}
+				</a>
+				<a
+					href={resolve('/runners')}
+					class="btn preset-tonal-surface border border-surface-200-800 inline-flex items-center gap-2"
+				>
+					<Users class="size-4" />
+					{i18n.m.landing.ctaRunners}
+				</a>
+			</div>
+		</div>
+	</Hero>
 
-	<div class="card preset-tonal-primary p-4">
-		<div class="font-semibold mb-1">{i18n.m.landing.mockTitle}</div>
-		<p class="text-sm opacity-90">{i18n.m.landing.mockDescription}</p>
-	</div>
+	<WaveDivider class="h-10 w-full text-primary-300 dark:text-primary-700 -mt-6" />
 
-	<section>
-		<h2 class="h3 mb-3">{i18n.m.landing.eventsHeading}</h2>
-		<ul class="grid gap-3 sm:grid-cols-2">
-			{#each events as event (event.id)}
+	<section id="events">
+		<SectionHeader title={i18n.m.landing.eventsHeading} icon={Calendar} tone="primary" />
+		<ul class="grid gap-4 sm:grid-cols-2">
+			{#each events as event, i (event.id)}
 				<li>
-					<a
-						href={resolve('/events/[id]', { id: event.id })}
-						class="card preset-filled-surface-100-900 border border-surface-200-800 p-4 block hover:preset-tonal-primary"
-					>
-						<div class="font-semibold">{event.name}</div>
-						<div class="text-xs opacity-70 mt-1">
-							{formatDate(event.date)}{#if event.location}
-								· {event.location}
-							{/if}
-						</div>
-					</a>
+					<EventCard {event} tone={i % 2 === 0 ? 'primary' : 'secondary'} />
 				</li>
 			{/each}
 		</ul>
 	</section>
 
 	<section>
-		<div class="flex items-baseline justify-between mb-3">
-			<h2 class="h3">{i18n.m.landing.runnersHeading}</h2>
-			<a href={resolve('/runners')} class="text-sm text-primary-500 hover:underline"
-				>{i18n.m.landing.seeAll}</a
-			>
-		</div>
+		<SectionHeader title={i18n.m.landing.runnersHeading} icon={Users} tone="secondary">
+			{#snippet action()}
+				<a
+					href={resolve('/runners')}
+					class="inline-flex items-center gap-1 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-200 px-3 py-1 text-sm font-medium hover:bg-primary-200 dark:hover:bg-primary-900/60 transition-colors"
+				>
+					{i18n.m.landing.seeAll}
+					<ArrowRight class="size-3.5" />
+				</a>
+			{/snippet}
+		</SectionHeader>
 		<ul class="grid gap-3 sm:grid-cols-2">
 			{#each runners.slice(0, 4) as runner (runner.id)}
 				<li>
-					<a
-						href={resolve('/runners/[id]', { id: runner.id })}
-						class="card preset-filled-surface-100-900 border border-surface-200-800 p-4 block hover:preset-tonal-primary"
-					>
-						<div class="font-semibold">{runner.name}</div>
-						<div class="text-xs opacity-70 mt-1">{runner.gender}</div>
-					</a>
+					<RunnerCard {runner} />
 				</li>
 			{/each}
 		</ul>

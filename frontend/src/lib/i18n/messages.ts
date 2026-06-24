@@ -1,3 +1,5 @@
+import type { Gender } from '$lib/types';
+
 export type Locale = 'sv' | 'en';
 
 export const locales: ReadonlyArray<{ code: Locale; name: string }> = [
@@ -10,11 +12,18 @@ const sv = {
 		brand: 'Ingmarsöloppet',
 		home: 'Hem',
 		runners: 'Löpare',
-		language: 'Språk'
+		language: 'Språk',
+		theme: 'Tema',
+		themeLight: 'Ljust',
+		themeDark: 'Mörkt',
+		themeSystem: 'System'
 	},
 	footer: 'Ingmarsöloppet · mockdata — backend ej ansluten',
 	landing: {
 		description: 'En plattform för att visa löparresultat från årliga lopp.',
+		heroTagline: 'Löparglädje i Stockholms skärgård — resultat, statistik och historik från varje upplaga.',
+		ctaEvents: 'Se loppen',
+		ctaRunners: 'Bläddra bland löpare',
 		mockTitle: 'Mockdata-läge',
 		mockDescription:
 			'Sidorna nedan visar handgjorda exempel. Backend ansluts när UI-formen är fastställd.',
@@ -30,6 +39,7 @@ const sv = {
 		description: 'Klicka på en löpare för att se deras resultat.',
 		searchPlaceholder: 'Sök på namn…',
 		searchLabel: 'Sök löpare',
+		resultCount: (n: number) => (n === 1 ? '1 löpare' : `${n} löpare`),
 		noMatch: (q: string) => `Ingen löpare matchar "${q}".`
 	},
 	runner: {
@@ -53,8 +63,13 @@ const sv = {
 		bib: 'Startnummer',
 		category: 'Kategori',
 		splitsHeading: 'Mellantider',
+		splitsBarTitle: 'Tempo per km',
+		fastestKmLabel: 'snabbast',
 		conditionsHeading: 'Förhållanden',
 		notesHeading: 'Anteckningar'
+	},
+	illustrations: {
+		decorative: 'Dekoration'
 	},
 	resultsTable: {
 		filter: 'Filter:',
@@ -71,9 +86,15 @@ const sv = {
 		loading: 'Laddar…',
 		notFound: 'Loppet hittades inte.',
 		backHome: 'Tillbaka till start',
-		racesHeading: 'Klasser',
+		racesHeading: 'Lopp',
 		participants: (count: number) => (count === 1 ? '1 deltagare' : `${count} deltagare`),
 		noResults: 'Inga resultat ännu.'
+	},
+	race: {
+		kids: 'Barnlopp'
+	},
+	category: {
+		gender: { M: 'M', F: 'D', X: 'X' } as Record<Gender, string>
 	},
 	leaderboard: {
 		columnRank: 'Plats',
@@ -116,11 +137,19 @@ const en: Catalog = {
 		brand: 'Ingmarsöloppet',
 		home: 'Home',
 		runners: 'Runners',
-		language: 'Language'
+		language: 'Language',
+		theme: 'Theme',
+		themeLight: 'Light',
+		themeDark: 'Dark',
+		themeSystem: 'System'
 	},
 	footer: 'Ingmarsöloppet · mock data — backend not yet wired',
 	landing: {
 		description: 'A platform for viewing runner race results across yearly events.',
+		heroTagline:
+			"Running joy in Stockholm's archipelago — results, stats and history from every edition.",
+		ctaEvents: 'View events',
+		ctaRunners: 'Browse runners',
 		mockTitle: 'Mock data mode',
 		mockDescription:
 			'The pages below render hand-rolled fixtures. The backend will be wired up after the UI shape is locked in.',
@@ -136,6 +165,7 @@ const en: Catalog = {
 		description: 'Click a runner to see their results.',
 		searchPlaceholder: 'Search by name…',
 		searchLabel: 'Search runners',
+		resultCount: (n: number) => (n === 1 ? '1 runner' : `${n} runners`),
 		noMatch: (q: string) => `No runners match "${q}".`
 	},
 	runner: {
@@ -159,8 +189,13 @@ const en: Catalog = {
 		bib: 'Bib',
 		category: 'Category',
 		splitsHeading: 'Splits',
+		splitsBarTitle: 'Pace per km',
+		fastestKmLabel: 'fastest',
 		conditionsHeading: 'Conditions',
 		notesHeading: 'Notes'
+	},
+	illustrations: {
+		decorative: 'Decorative'
 	},
 	resultsTable: {
 		filter: 'Filter:',
@@ -180,6 +215,12 @@ const en: Catalog = {
 		racesHeading: 'Races',
 		participants: (count: number) => (count === 1 ? '1 participant' : `${count} participants`),
 		noResults: 'No results yet.'
+	},
+	race: {
+		kids: "Kids' race"
+	},
+	category: {
+		gender: { M: 'M', F: 'F', X: 'X' } as Record<Gender, string>
 	},
 	leaderboard: {
 		columnRank: 'Rank',

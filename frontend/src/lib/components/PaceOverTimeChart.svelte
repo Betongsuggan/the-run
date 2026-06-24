@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { i18n } from '$lib/i18n/state.svelte';
 	import type { ResultExpanded } from '$lib/types';
-	import { formatPace, formatDate } from '$lib/format';
+	import { formatPace, formatDate, formatRaceName } from '$lib/format';
 
 	let { results }: { results: ResultExpanded[] } = $props();
 
@@ -18,7 +18,7 @@
 			.map((r) => ({
 				date: r.event.date,
 				secondsPerKm: r.finishSeconds / (r.race.distanceMeters / 1000),
-				label: `${r.race.name} — ${formatDate(r.event.date)}`,
+				label: `${formatRaceName(r.race)} — ${formatDate(r.event.date)}`,
 				distanceMeters: r.race.distanceMeters
 			}))
 			.sort((a, b) => (a.date < b.date ? -1 : 1))

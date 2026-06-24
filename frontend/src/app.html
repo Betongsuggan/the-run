@@ -4,9 +4,24 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Ingmarsöloppet</title>
+		<script>
+			(function () {
+				try {
+					var stored = localStorage.getItem('the-run.theme');
+					var mode = stored === 'light' || stored === 'dark' ? stored : 'system';
+					var resolved =
+						mode === 'system'
+							? window.matchMedia('(prefers-color-scheme: dark)').matches
+								? 'dark'
+								: 'light'
+							: mode;
+					if (resolved === 'dark') document.documentElement.classList.add('dark');
+				} catch (_) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
-	<body data-sveltekit-preload-data="hover" data-theme="cerberus">
+	<body data-sveltekit-preload-data="hover" data-theme="archipelago">
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

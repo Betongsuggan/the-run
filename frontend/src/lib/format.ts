@@ -1,3 +1,6 @@
+import { i18n } from '$lib/i18n/state.svelte';
+import type { Category, Gender, Race } from '$lib/types';
+
 export function formatTime(totalSeconds: number): string {
 	const h = Math.floor(totalSeconds / 3600);
 	const m = Math.floor((totalSeconds % 3600) / 60);
@@ -20,9 +23,28 @@ export function formatDistance(meters: number): string {
 	return Number.isInteger(km) ? `${km}K` : `${km.toFixed(2)} km`;
 }
 
-import { i18n } from '$lib/i18n/state.svelte';
-
 export function formatDate(iso: string): string {
 	const tag = i18n.locale === 'sv' ? 'sv-SE' : 'en-GB';
 	return new Date(iso).toLocaleDateString(tag);
+}
+
+export function formatRaceName(race: Race): string {
+	if (race.discipline === 'kids') return i18n.m.race.kids;
+	const km = race.distanceMeters / 1000;
+	const kmStr = Number.isInteger(km) ? `${km}km` : `${km.toFixed(1)}km`;
+	return `${kmStr} ${i18n.m.discipline[race.discipline]}`;
+}
+
+export function formatGender(g: Gender): string {
+	return i18n.m.category.gender[g];
+}
+
+export function formatCategory(cat: Category): string {
+	const parts: string[] = [];
+	if (cat.gender) parts.push(formatGender(cat.gender));
+	if (cat.ageGroup) {
+		const stripped = cat.ageGroup.replace(/^[MFX](?=\d)/, '');
+		parts.push(stripped);
+	}
+	return parts.join(' ');
 }

@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 
 @import '@skeletonlabs/skeleton';
-@import '@skeletonlabs/skeleton/themes/cerberus';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/fraunces';
+@import './lib/themes/archipelago.css';
 
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
+
+@custom-variant dark (&:where(.dark, .dark *));
