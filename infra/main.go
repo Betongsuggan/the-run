@@ -4,6 +4,10 @@ import (
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+
+	"github.com/BirgerRydback/the-run/infra/backend"
+	infradns "github.com/BirgerRydback/the-run/infra/dns"
+	"github.com/BirgerRydback/the-run/infra/frontend"
 )
 
 func main() {
@@ -31,41 +35,28 @@ func main() {
 			return err
 		}
 
-		zoneID, nameServers, err := setupHostedZone(ctx, domain, createZone)
+		zoneID, nameServers, err := infradns.SetupHostedZone(ctx, domain, createZone)
 		if err != nil {
 			return err
 		}
 
-		cfCert, cfCertValidation, err := createCloudFrontCert(ctx, siteFQDN, siteSub, domain, zoneID, usEast1)
-		if err != nil {
-			return err
-		}
-		apiCert, apiCertValidation, err := createAPICert(ctx, apiFQDN, zoneID)
+		fe, err := frontend.Setup(ctx, siteSub, domain, siteFQDN, zoneID, usEast1)
 		if err != nil {
 			return err
 		}
 
-		fe, err := setupFrontend(ctx, siteSub, domain, siteFQDN, cfCert, cfCertValidation)
+		be, err := backend.Setup(ctx, apiFQDN, siteFQDN, zoneID)
 		if err != nil {
-			return err
-		}
-
-		ap, err := setupAPI(ctx, apiFQDN, siteFQDN, apiCert, apiCertValidation)
-		if err != nil {
-			return err
-		}
-
-		if err := setupAliasRecords(ctx, zoneID, siteFQDN, siteSub, domain, apiFQDN, fe.distribution, ap.apiDomain); err != nil {
 			return err
 		}
 
 		ctx.Export("frontendUrl", pulumi.Sprintf("https://%s", siteFQDN))
 		ctx.Export("apiUrl", pulumi.Sprintf("https://%s", apiFQDN))
-		ctx.Export("apiGatewayInvokeUrl", ap.api.ApiEndpoint)
-		ctx.Export("cloudFrontDistributionId", fe.distribution.ID())
-		ctx.Export("cloudFrontDomainName", fe.distribution.DomainName)
-		ctx.Export("frontendBucket", fe.bucket.Bucket)
-		ctx.Export("lambdaName", ap.function.Name)
+		ctx.Export("apiGatewayInvokeUrl", be.API.ApiEndpoint)
+		ctx.Export("cloudFrontDistributionId", fe.Distribution.ID())
+		ctx.Export("cloudFrontDomainName", fe.Distribution.DomainName)
+		ctx.Export("frontendBucket", fe.Bucket.Bucket)
+		ctx.Export("lambdaName", be.Function.Name)
 		ctx.Export("hostedZoneNameServers", nameServers)
 
 		return nil

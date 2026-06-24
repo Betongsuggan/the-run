@@ -1,29 +1,38 @@
-package main
+// Package frontend provisions the S3 origin bucket, CloudFront distribution
+// (OAC-locked to the bucket), the bucket policy granting only that distribution
+// read access, the CloudFront ACM cert (us-east-1), and the Route53 alias
+// records pointing at the distribution.
+package frontend
 
 import (
 	"encoding/json"
 
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/acm"
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/cloudfront"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/s3"
 	syncedfolder "github.com/pulumi/pulumi-synced-folder/sdk/go/synced-folder"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type frontendResources struct {
-	bucket       *s3.BucketV2
-	distribution *cloudfront.Distribution
+// Resources is the set of frontend resources main.go exports outputs for.
+type Resources struct {
+	Bucket       *s3.BucketV2
+	Distribution *cloudfront.Distribution
 }
 
-// setupFrontend provisions the private S3 origin, the CloudFront distribution
-// (OAC-locked to the bucket), the bucket policy granting only that distribution
-// read access, and syncs the built frontend assets into the bucket.
-func setupFrontend(
+// Setup provisions the full frontend stack: cert, bucket, distribution,
+// bucket policy, synced assets, and alias records.
+func Setup(
 	ctx *pulumi.Context,
 	siteSub, domain, siteFQDN string,
-	cfCert *acm.Certificate,
-	cfCertValidation *acm.CertificateValidation,
-) (*frontendResources, error) {
+	zoneID pulumi.StringInput,
+	usEast1 *aws.Provider,
+) (*Resources, error) {
+	cert, certValidation, err := createCert(ctx, siteFQDN, siteSub, domain, zoneID, usEast1)
+	if err != nil {
+		return nil, err
+	}
+
 	siteBucket, err := s3.NewBucketV2(ctx, "site-bucket", &s3.BucketV2Args{
 		ForceDestroy: pulumi.Bool(true),
 	})
@@ -116,11 +125,11 @@ func setupFrontend(
 			},
 		},
 		ViewerCertificate: &cloudfront.DistributionViewerCertificateArgs{
-			AcmCertificateArn:      cfCert.Arn,
+			AcmCertificateArn:      cert.Arn,
 			SslSupportMethod:       pulumi.String("sni-only"),
 			MinimumProtocolVersion: pulumi.String("TLSv1.2_2021"),
 		},
-	}, pulumi.DependsOn([]pulumi.Resource{cfCertValidation}))
+	}, pulumi.DependsOn([]pulumi.Resource{certValidation}))
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +176,12 @@ func setupFrontend(
 		return nil, err
 	}
 
-	return &frontendResources{
-		bucket:       siteBucket,
-		distribution: distribution,
+	if err := createAliasRecords(ctx, zoneID, siteFQDN, siteSub, domain, distribution); err != nil {
+		return nil, err
+	}
+
+	return &Resources{
+		Bucket:       siteBucket,
+		Distribution: distribution,
 	}, nil
 }

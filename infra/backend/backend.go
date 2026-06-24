@@ -1,27 +1,35 @@
-package main
+// Package backend provisions the Lambda function, API Gateway v2 HTTP API,
+// the regional ACM cert + custom domain, and the Route53 alias record pointing
+// at the API Gateway domain.
+package backend
 
 import (
 	"encoding/json"
 
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/acm"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/apigatewayv2"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
 	awslambda "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/lambda"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type apiResources struct {
-	api       *apigatewayv2.Api
-	function  *awslambda.Function
-	apiDomain *apigatewayv2.DomainName
+// Resources is the set of backend resources main.go exports outputs for.
+type Resources struct {
+	API      *apigatewayv2.Api
+	Function *awslambda.Function
 }
 
-func setupAPI(
+// Setup provisions the full backend stack: cert, IAM role, Lambda, HTTP API,
+// integration + routes + stage + custom domain, and the alias record.
+func Setup(
 	ctx *pulumi.Context,
 	apiFQDN, siteFQDN string,
-	apiCert *acm.Certificate,
-	apiCertValidation *acm.CertificateValidation,
-) (*apiResources, error) {
+	zoneID pulumi.StringInput,
+) (*Resources, error) {
+	cert, certValidation, err := createCert(ctx, apiFQDN, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
 	assumePolicy, err := json.Marshal(map[string]any{
 		"Version": "2012-10-17",
 		"Statement": []any{
@@ -135,11 +143,11 @@ func setupAPI(
 	apiDomain, err := apigatewayv2.NewDomainName(ctx, "api-domain", &apigatewayv2.DomainNameArgs{
 		DomainName: pulumi.String(apiFQDN),
 		DomainNameConfiguration: &apigatewayv2.DomainNameDomainNameConfigurationArgs{
-			CertificateArn: apiCert.Arn,
+			CertificateArn: cert.Arn,
 			EndpointType:   pulumi.String("REGIONAL"),
 			SecurityPolicy: pulumi.String("TLS_1_2"),
 		},
-	}, pulumi.DependsOn([]pulumi.Resource{apiCertValidation}))
+	}, pulumi.DependsOn([]pulumi.Resource{certValidation}))
 	if err != nil {
 		return nil, err
 	}
@@ -153,9 +161,12 @@ func setupAPI(
 		return nil, err
 	}
 
-	return &apiResources{
-		api:       api,
-		function:  fn,
-		apiDomain: apiDomain,
+	if err := createAliasRecord(ctx, zoneID, apiFQDN, apiDomain); err != nil {
+		return nil, err
+	}
+
+	return &Resources{
+		API:      api,
+		Function: fn,
 	}, nil
 }
