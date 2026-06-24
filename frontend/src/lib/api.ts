@@ -1,5 +1,5 @@
 import { PUBLIC_API_BASE_URL } from '$env/static/public';
-import { events, races, results, runners } from '$lib/mock/data';
+import { dataStore } from '$lib/store/data.svelte';
 import type { Race, RaceEvent, Result, ResultExpanded, Runner } from '$lib/types';
 
 export type Hello = {
@@ -16,25 +16,25 @@ export async function getHello(fetchImpl: typeof fetch = fetch): Promise<Hello> 
 }
 
 const expand = (result: Result): ResultExpanded | null => {
-	const race = races.find((r) => r.id === result.raceId);
+	const race = dataStore.races.find((r) => r.id === result.raceId);
 	if (!race) return null;
-	const event = events.find((e) => e.id === race.eventId);
+	const event = dataStore.events.find((e) => e.id === race.eventId);
 	if (!event) return null;
-	const runner = runners.find((rn) => rn.id === result.runnerId);
+	const runner = dataStore.runners.find((rn) => rn.id === result.runnerId);
 	if (!runner) return null;
 	return { ...result, race, event, runner };
 };
 
 export async function listRunners(): Promise<Runner[]> {
-	return Promise.resolve(runners);
+	return Promise.resolve([...dataStore.runners]);
 }
 
 export async function getRunner(id: string): Promise<Runner | undefined> {
-	return Promise.resolve(runners.find((r) => r.id === id));
+	return Promise.resolve(dataStore.runners.find((r) => r.id === id));
 }
 
 export async function listResultsForRunner(runnerId: string): Promise<ResultExpanded[]> {
-	const expanded = results
+	const expanded = dataStore.results
 		.filter((r) => r.runnerId === runnerId)
 		.map(expand)
 		.filter((r): r is ResultExpanded => r !== null)
@@ -43,26 +43,26 @@ export async function listResultsForRunner(runnerId: string): Promise<ResultExpa
 }
 
 export async function getResult(id: string): Promise<ResultExpanded | undefined> {
-	const result = results.find((r) => r.id === id);
+	const result = dataStore.results.find((r) => r.id === id);
 	if (!result) return undefined;
 	const expanded = expand(result);
 	return Promise.resolve(expanded ?? undefined);
 }
 
 export async function listEvents(): Promise<RaceEvent[]> {
-	return Promise.resolve(events);
+	return Promise.resolve([...dataStore.events]);
 }
 
 export async function getEvent(id: string): Promise<RaceEvent | undefined> {
-	return Promise.resolve(events.find((e) => e.id === id));
+	return Promise.resolve(dataStore.events.find((e) => e.id === id));
 }
 
 export async function listRacesForEvent(eventId: string): Promise<Race[]> {
-	return Promise.resolve(races.filter((r) => r.eventId === eventId));
+	return Promise.resolve(dataStore.races.filter((r) => r.eventId === eventId));
 }
 
 export async function listResultsForRace(raceId: string): Promise<ResultExpanded[]> {
-	const expanded = results
+	const expanded = dataStore.results
 		.filter((r) => r.raceId === raceId)
 		.map(expand)
 		.filter((r): r is ResultExpanded => r !== null)
