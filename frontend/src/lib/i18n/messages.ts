@@ -67,6 +67,22 @@ const sv = {
 		columnBib: 'Startnr',
 		noMatch: 'Inga resultat matchar filtret.'
 	},
+	event: {
+		loading: 'Laddar…',
+		notFound: 'Loppet hittades inte.',
+		backHome: 'Tillbaka till start',
+		racesHeading: 'Klasser',
+		participants: (count: number) => (count === 1 ? '1 deltagare' : `${count} deltagare`),
+		noResults: 'Inga resultat ännu.'
+	},
+	leaderboard: {
+		columnRank: 'Plats',
+		columnRunner: 'Löpare',
+		columnTime: 'Tid',
+		columnPace: 'Tempo',
+		columnCategory: 'Kategori',
+		columnBib: 'Startnr'
+	},
 	discipline: {
 		all: 'alla',
 		run: 'löpning',
@@ -156,6 +172,22 @@ const en: Catalog = {
 		columnPlace: 'Place',
 		columnBib: 'Bib',
 		noMatch: 'No results match this filter.'
+	},
+	event: {
+		loading: 'Loading…',
+		notFound: 'Event not found.',
+		backHome: 'Back to home',
+		racesHeading: 'Races',
+		participants: (count: number) => (count === 1 ? '1 participant' : `${count} participants`),
+		noResults: 'No results yet.'
+	},
+	leaderboard: {
+		columnRank: 'Rank',
+		columnRunner: 'Runner',
+		columnTime: 'Time',
+		columnPace: 'Pace',
+		columnCategory: 'Category',
+		columnBib: 'Bib'
 	},
 	discipline: {
 		all: 'all',

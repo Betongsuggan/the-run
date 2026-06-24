@@ -53,6 +53,19 @@ export async function listEvents(): Promise<RaceEvent[]> {
 	return Promise.resolve(events);
 }
 
+export async function getEvent(id: string): Promise<RaceEvent | undefined> {
+	return Promise.resolve(events.find((e) => e.id === id));
+}
+
 export async function listRacesForEvent(eventId: string): Promise<Race[]> {
 	return Promise.resolve(races.filter((r) => r.eventId === eventId));
+}
+
+export async function listResultsForRace(raceId: string): Promise<ResultExpanded[]> {
+	const expanded = results
+		.filter((r) => r.raceId === raceId)
+		.map(expand)
+		.filter((r): r is ResultExpanded => r !== null)
+		.sort((a, b) => a.finishSeconds - b.finishSeconds);
+	return Promise.resolve(expanded);
 }

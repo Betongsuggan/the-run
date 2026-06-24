@@ -1,11 +1,10 @@
 import type { Race, RaceEvent, Result, Runner } from '$lib/types';
 
 export const runners: Runner[] = [
-	{ id: 'r-birger', name: 'Birger Rydbäck', gender: 'M', birthYear: 1988 },
-	{ id: 'r-anna', name: 'Anna Lindqvist', gender: 'F', birthYear: 1991 },
-	{ id: 'r-johan', name: 'Johan Eriksson', gender: 'M', birthYear: 1975 },
-	{ id: 'r-mira', name: 'Mira Sundberg', gender: 'F', birthYear: 2014 },
-	{ id: 'r-oskar', name: 'Oskar Holm', gender: 'M', birthYear: 1999 }
+	{ id: 'r-birger', name: 'Birger Rydback', gender: 'M', birthYear: 1988 },
+	{ id: 'r-luisa', name: 'Luisa Stock', gender: 'F', birthYear: 1991 },
+	{ id: 'r-kalle', name: 'Kalle Torlén', gender: 'M', birthYear: 1975 },
+	{ id: 'r-viktoria', name: 'Viktoria Torlén', gender: 'F', birthYear: 2014 }
 ];
 
 export const events: RaceEvent[] = [
@@ -156,7 +155,7 @@ export const results: Result[] = [
 	{
 		id: 'res-5',
 		raceId: 'rc-2025-5k-walk',
-		runnerId: 'r-anna',
+		runnerId: 'r-luisa',
 		bib: '301',
 		finishSeconds: 38 * 60 + 22,
 		category: { gender: 'F', ageGroup: 'F30-39' },
@@ -169,7 +168,7 @@ export const results: Result[] = [
 	{
 		id: 'res-6',
 		raceId: 'rc-2026-5k-walk',
-		runnerId: 'r-anna',
+		runnerId: 'r-luisa',
 		bib: '301',
 		finishSeconds: 37 * 60 + 50,
 		category: { gender: 'F', ageGroup: 'F30-39' },
@@ -182,7 +181,7 @@ export const results: Result[] = [
 	{
 		id: 'res-7',
 		raceId: 'rc-2025-10k-run',
-		runnerId: 'r-johan',
+		runnerId: 'r-kalle',
 		bib: '210',
 		finishSeconds: 45 * 60 + 12,
 		category: { gender: 'M', ageGroup: 'M50-59' },
@@ -195,7 +194,7 @@ export const results: Result[] = [
 	{
 		id: 'res-8',
 		raceId: 'rc-2026-10k-run',
-		runnerId: 'r-johan',
+		runnerId: 'r-kalle',
 		bib: '210',
 		finishSeconds: 44 * 60 + 58,
 		category: { gender: 'M', ageGroup: 'M50-59' },
@@ -208,7 +207,7 @@ export const results: Result[] = [
 	{
 		id: 'res-9',
 		raceId: 'rc-2025-kids',
-		runnerId: 'r-mira',
+		runnerId: 'r-viktoria',
 		bib: 'K-44',
 		finishSeconds: 6 * 60 + 12,
 		category: { gender: 'F', ageGroup: 'U12' },
@@ -220,39 +219,13 @@ export const results: Result[] = [
 	{
 		id: 'res-10',
 		raceId: 'rc-2026-kids',
-		runnerId: 'r-mira',
+		runnerId: 'r-viktoria',
 		bib: 'K-44',
 		finishSeconds: 5 * 60 + 48,
 		category: { gender: 'F', ageGroup: 'U12' },
 		placementOverall: 4,
 		placementCategory: 2,
 		conditions: 'Overcast, 15°C',
-		notes: ''
-	},
-	{
-		id: 'res-11',
-		raceId: 'rc-2026-5k-run',
-		runnerId: 'r-oskar',
-		bib: '173',
-		finishSeconds: 21 * 60 + 9,
-		category: { gender: 'M', ageGroup: 'M20-29' },
-		placementOverall: 8,
-		placementCategory: 3,
-		splits: splits5k(21 * 60 + 9),
-		conditions: 'Overcast, 15°C',
-		notes: 'Top 10 finish!'
-	},
-	{
-		id: 'res-12',
-		raceId: 'rc-2025-5k-run',
-		runnerId: 'r-oskar',
-		bib: '173',
-		finishSeconds: 22 * 60 + 4,
-		category: { gender: 'M', ageGroup: 'M20-29' },
-		placementOverall: 12,
-		placementCategory: 5,
-		splits: splits5k(22 * 60 + 4),
-		conditions: 'Sunny, 18°C',
 		notes: ''
 	}
 ];

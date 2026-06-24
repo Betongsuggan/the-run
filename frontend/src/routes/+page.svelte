@@ -41,13 +41,18 @@
 		<h2 class="h3 mb-3">{i18n.m.landing.eventsHeading}</h2>
 		<ul class="grid gap-3 sm:grid-cols-2">
 			{#each events as event (event.id)}
-				<li class="card preset-filled-surface-100-900 border border-surface-200-800 p-4">
-					<div class="font-semibold">{event.name}</div>
-					<div class="text-xs opacity-70 mt-1">
-						{formatDate(event.date)}{#if event.location}
-							· {event.location}
-						{/if}
-					</div>
+				<li>
+					<a
+						href={resolve('/events/[id]', { id: event.id })}
+						class="card preset-filled-surface-100-900 border border-surface-200-800 p-4 block hover:preset-tonal-primary"
+					>
+						<div class="font-semibold">{event.name}</div>
+						<div class="text-xs opacity-70 mt-1">
+							{formatDate(event.date)}{#if event.location}
+								· {event.location}
+							{/if}
+						</div>
+					</a>
 				</li>
 			{/each}
 		</ul>

@@ -60,8 +60,9 @@ keep frontend and backend in lockstep.
 
 ### Phase F2 — Polish + missing UX
 
-- [ ] Event detail page (`/events/[id]`) — leaderboard for each race in the
-  event.
+- [x] Event detail page (`/events/[id]`) — header (name, date, location) + each
+  race in the event rendered as a leaderboard (rank, runner, time, pace,
+  category, bib). Reached by clicking an event card on the landing page.
 - [ ] Age-group + gender filters on the results table.
 - [ ] Per-runner share/print view of a single race result.
 - [ ] Empty-state and error-state designs (currently minimal).
