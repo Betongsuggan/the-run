@@ -27,7 +27,6 @@ func main() {
 			siteFQDN = siteSub + "." + domain
 		}
 
-		// us-east-1 provider for the CloudFront ACM certificate.
 		usEast1, err := aws.NewProvider(ctx, "us-east-1", &aws.ProviderArgs{
 			Region: pulumi.String("us-east-1"),
 		})
