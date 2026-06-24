@@ -20,6 +20,7 @@ frontend/.env.*
 
 # Pulumi
 infra/.pulumi/
+infra/.pulumi-local/
 infra/Pulumi.*.yaml.bak
 infra/infra
 infra/bin/

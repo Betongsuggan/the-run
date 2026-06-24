@@ -11,11 +11,19 @@ import (
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"github.com/BirgerRydback/the-run/backend/internal/api"
+	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
 func main() {
+	ctx := context.Background()
+
+	dynStore, err := store.NewDynamoStoreFromEnv(ctx)
+	if err != nil {
+		log.Fatalf("init store: %v", err)
+	}
+
 	mux := http.NewServeMux()
-	api.Register(mux)
+	api.Register(mux, dynStore)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") == "" {
 		addr := ":8080"

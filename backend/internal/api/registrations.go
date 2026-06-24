@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +10,10 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
+
+	"github.com/BirgerRydback/the-run/backend/internal/models"
+	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
 type RegisterInput struct {
@@ -25,12 +30,13 @@ type RegisterInput struct {
 
 type RegisterOutput struct {
 	Body struct {
-		ID     string `json:"id" doc:"Server-assigned registration ID"`
-		Status string `json:"status" doc:"Lifecycle status, e.g. 'received'"`
+		ID       string `json:"id" doc:"Server-assigned registration ID"`
+		RunnerID string `json:"runnerId" doc:"ID of the runner (existing or newly created)"`
+		Status   string `json:"status" doc:"Lifecycle status, e.g. 'received'"`
 	}
 }
 
-func registerRegistrations(api huma.API) {
+func registerRegistrations(api huma.API, s store.Store) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "register-for-race",
 		Method:        "POST",
@@ -57,15 +63,47 @@ func registerRegistrations(api huma.API) {
 		}
 
 		// TODO(B1): once race + event tables exist, validate that the race
-		// exists and its event date is today or later, then persist the
-		// registration. For now we log and return a stub ID so the frontend
-		// flow can be exercised end-to-end.
-		log.Printf("registration received: name=%q dob=%s gender=%s raceId=%s",
-			in.Body.Name, in.Body.DateOfBirth, in.Body.Gender, in.Body.RaceID)
+		// exists and its event date is today or later. For now we trust the
+		// raceId — the frontend filters to upcoming races.
+
+		nameDobKey := models.NameDobKey(in.Body.Name, in.Body.DateOfBirth)
+		runner, err := s.RunnerByNameDOB(ctx, nameDobKey)
+		if err != nil {
+			return nil, fmt.Errorf("lookup runner: %w", err)
+		}
+		if runner == nil {
+			runner = &models.Runner{
+				ID:        uuid.NewString(),
+				Name:      strings.TrimSpace(in.Body.Name),
+				BirthDate: in.Body.DateOfBirth,
+				Gender:    in.Body.Gender,
+				CreatedAt: time.Now().UTC(),
+			}
+			if err := s.CreateRunner(ctx, *runner); err != nil {
+				return nil, fmt.Errorf("create runner: %w", err)
+			}
+		}
+
+		reg := models.Registration{
+			ID:        uuid.NewString(),
+			RaceID:    in.Body.RaceID,
+			RunnerID:  runner.ID,
+			Status:    "received",
+			CreatedAt: time.Now().UTC(),
+		}
+		if err := s.CreateRegistration(ctx, reg); err != nil {
+			if errors.Is(err, store.ErrAlreadyRegistered) {
+				return nil, huma.Error409Conflict("already registered for this race")
+			}
+			return nil, fmt.Errorf("create registration: %w", err)
+		}
+
+		log.Printf("registration stored: id=%s runnerId=%s raceId=%s", reg.ID, runner.ID, reg.RaceID)
 
 		out := &RegisterOutput{}
-		out.Body.ID = fmt.Sprintf("reg-%d", time.Now().UnixNano())
-		out.Body.Status = "received"
+		out.Body.ID = reg.ID
+		out.Body.RunnerID = runner.ID
+		out.Body.Status = reg.Status
 		return out, nil
 	})
 }

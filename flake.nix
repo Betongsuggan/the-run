@@ -25,6 +25,9 @@
 
           awscli2
 
+          localstack
+          docker-client
+
           just
           zip
           jq

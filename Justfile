@@ -95,13 +95,92 @@ pulumi-login region='eu-north-1':
 
 # ─── Local dev ─────────────────────────────────────────────────────────
 
-# Run the Go API locally on :8080
+# Run the Go API locally on :8080 against the LocalStack DynamoDB tables.
+# Prerequisites (one-time): `just localstack-bootstrap`. Per-session: the
+# LocalStack container must be running — `just localstack-up`.
 dev-backend:
-    cd backend && go run ./cmd/api
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd backend
+    export AWS_ENDPOINT_URL=http://localhost:4566
+    export AWS_REGION=eu-north-1
+    export AWS_ACCESS_KEY_ID=test
+    export AWS_SECRET_ACCESS_KEY=test
+    export RUNNERS_TABLE_NAME=the-run-runners
+    export REGISTRATIONS_TABLE_NAME=the-run-registrations
+    go run ./cmd/api
 
 # Run the SvelteKit dev server on :5173
 dev-frontend:
     cd frontend && pnpm dev
+
+# ─── LocalStack ────────────────────────────────────────────────────────
+
+# Pulumi backend URL used by the `local` stack. File-backed so we never need
+# AWS creds for LocalStack workflows; isolated from the S3-backed `dev` stack.
+localstack_backend := "file://" + justfile_directory() + "/infra/.pulumi-local"
+
+# Shared env block that points every AWS SDK call at LocalStack. AWS_ENDPOINT_URL
+# is honored by aws-sdk-go-v2 (which the pulumi-aws provider uses), so this one
+# var covers every service the provider might touch — DynamoDB, STS, tagging,
+# etc. — without us having to enumerate them per service.
+localstack_env := '''
+export AWS_ENDPOINT_URL=http://localhost:4566
+export AWS_REGION=eu-north-1
+export AWS_DEFAULT_REGION=eu-north-1
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+'''
+
+# Start LocalStack in the background (idempotent).
+localstack-up:
+    localstack start -d
+    localstack wait -t 60
+
+# Stop the LocalStack container.
+localstack-down:
+    localstack stop
+
+# One-time: initialize the `local` Pulumi stack using a file backend and set
+# its config flags. Re-running is safe — it skips already-initialized stacks.
+localstack-bootstrap:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ localstack_env }}
+    mkdir -p "{{ justfile_directory() }}/infra/.pulumi-local"
+    export PULUMI_BACKEND_URL="{{ localstack_backend }}"
+    export PULUMI_CONFIG_PASSPHRASE="${PULUMI_CONFIG_PASSPHRASE:-localstack}"
+    if pulumi -C infra stack select local >/dev/null 2>&1; then
+      echo "Pulumi stack local already initialized — skipping."
+    else
+      pulumi -C infra stack init local
+    fi
+    pulumi -C infra config set the-run:localstack true --stack local
+    pulumi -C infra config set the-run:domain localhost --stack local
+
+# Apply the Pulumi `local` stack to LocalStack. Starts LocalStack first.
+localstack-deploy: localstack-up
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ localstack_env }}
+    export PULUMI_BACKEND_URL="{{ localstack_backend }}"
+    export PULUMI_CONFIG_PASSPHRASE="${PULUMI_CONFIG_PASSPHRASE:-localstack}"
+    pulumi -C infra up --stack local --yes
+
+# Tear down the LocalStack-deployed resources (does not stop the container).
+localstack-destroy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ localstack_env }}
+    export PULUMI_BACKEND_URL="{{ localstack_backend }}"
+    export PULUMI_CONFIG_PASSPHRASE="${PULUMI_CONFIG_PASSPHRASE:-localstack}"
+    pulumi -C infra destroy --stack local --yes
+
+# List DynamoDB tables in LocalStack (sanity check).
+localstack-tables:
+    AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+      aws --endpoint-url=http://localhost:4566 --region=eu-north-1 \
+      dynamodb list-tables
 
 # ─── Build ────────────────────────────────────────────────────────────
 

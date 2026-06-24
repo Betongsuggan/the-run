@@ -89,9 +89,10 @@ keep frontend and backend in lockstep.
 
 ### Phase B1 — Read-only API matching the frontend's mock surface
 
-- [ ] DynamoDB single-table design for Event / Race / Result / Runner (or
-  decide on multi-table). Keys + GSIs to support: list runners, get runner,
-  list results for runner, get result.
+- [ ] DynamoDB tables for Event / Race / Result. The runner side already
+  exists (`the-run-runners`, single-PK + `byNameDOB` GSI) from B-public;
+  multi-table is the working assumption. Re-evaluate single-table once
+  the read patterns are concrete.
 - [ ] Pulumi DynamoDB table + IAM (Lambda read access).
 - [ ] Huma endpoints mirroring `src/lib/api.ts`:
   - `GET /runners`
@@ -112,11 +113,16 @@ keep frontend and backend in lockstep.
 ### Phase B-public — Public-write endpoints
 
 - [x] `POST /registrations` — accepts `{ name, dateOfBirth, gender, raceId }`
-  for the public registration form. Currently logs + returns a stub ID;
-  persistence lands with B1's data model.
+  for the public registration form. Looks up an existing runner by
+  `(name, dateOfBirth)`, creates one if missing, then writes a registration
+  linking the two. Returns `{ id, runnerId, status }`. Duplicates return
+  HTTP 409.
+- [x] Persist runners + registrations to DynamoDB. Two tables for now —
+  `the-run-runners` and `the-run-registrations`. Single-table consolidation
+  is revisited when B1 (Event/Race/Result) lands.
 - [ ] Validate that `raceId` exists and its event date is today or later
-  (currently the frontend enforces this; backend should not trust it).
-- [ ] Persist registrations to DynamoDB alongside the rest of the schema.
+  (currently the frontend enforces this; backend will once Race/Event
+  tables exist under B1).
 - [ ] Verify the captcha token (Turnstile/hCaptcha — see F2) server-side
   before accepting the registration.
 
@@ -152,3 +158,6 @@ keep frontend and backend in lockstep.
 - When a decision overturns an earlier one, leave the original line (struck
   through) and add the new line below so the reasoning is visible.
 - Phase F2 and later are placeholders — re-shape freely as we learn from F1.
+- **Local-dev AWS**: LocalStack, provisioned by the same Pulumi project under
+  the `local` stack (file-backed state, no AWS creds needed). See
+  `just localstack-bootstrap` / `localstack-deploy`.
