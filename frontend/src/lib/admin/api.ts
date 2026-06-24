@@ -1,7 +1,7 @@
 import { browser } from '$app/environment';
 import { auth, type AdminUser } from '$lib/admin/auth.svelte';
-import { dataStore } from '$lib/store/data.svelte';
-import type { Race, RaceEvent, Result, Runner } from '$lib/types';
+import { dataStore, type RegistrationUpdate } from '$lib/store/data.svelte';
+import type { Race, RaceEvent, Registration, Runner } from '$lib/types';
 
 // ─── Mock backend store for users + invites ─────────────────────────────
 // Persists alongside the data store. Real backend replaces this.
@@ -247,21 +247,61 @@ export async function adminDeleteRace(id: string): Promise<void> {
 	dataStore.deleteRace(id);
 }
 
-// ─── Results CRUD ───────────────────────────────────────────────────────
+// ─── Registrations + bulk results ───────────────────────────────────────
 
-export async function adminCreateResult(input: Omit<Result, 'id'>): Promise<Result> {
-	await delay();
-	return dataStore.upsertResult(input);
+export async function adminListRegistrationsForRace(raceId: string): Promise<Registration[]> {
+	await delay(20);
+	return dataStore.registrations.filter((r) => r.raceId === raceId).map((r) => ({ ...r }));
 }
 
-export async function adminUpdateResult(result: Result): Promise<Result> {
+export type CreateRegistrationInput = {
+	raceId: string;
+	runnerId: string;
+	bib?: string;
+	category?: Registration['category'];
+};
+
+export async function adminCreateRegistration(input: CreateRegistrationInput): Promise<Registration> {
 	await delay();
-	return dataStore.upsertResult(result);
+	const existing = dataStore.registrations.find(
+		(r) => r.raceId === input.raceId && r.runnerId === input.runnerId
+	);
+	if (existing) throw new Error('This runner is already registered for this race.');
+	const runner = dataStore.runners.find((r) => r.id === input.runnerId);
+	if (!runner) throw new Error('Runner not found.');
+	const category = input.category ?? { gender: runner.gender };
+	return dataStore.upsertRegistration({
+		raceId: input.raceId,
+		runnerId: input.runnerId,
+		bib: input.bib?.trim() || undefined,
+		category,
+		status: 'pending'
+	});
 }
 
-export async function adminDeleteResult(id: string): Promise<void> {
+export async function adminDeleteRegistration(id: string): Promise<void> {
 	await delay();
-	dataStore.deleteResult(id);
+	dataStore.deleteRegistration(id);
+}
+
+export async function adminBulkUpdateRegistrations(
+	updates: RegistrationUpdate[]
+): Promise<Registration[]> {
+	await delay();
+	const normalized: RegistrationUpdate[] = updates.map((u) => {
+		const status = u.status;
+		if (status === 'finished') {
+			if (u.finishSeconds === null || u.finishSeconds === undefined) {
+				throw new Error('A finished registration requires a finish time.');
+			}
+			return u;
+		}
+		if (status === 'dnf' || status === 'dns' || status === 'pending') {
+			return { ...u, finishSeconds: null };
+		}
+		return u;
+	});
+	return dataStore.bulkUpdateRegistrations(normalized);
 }
 
 // Exposed so the UI can hint at the seed account in mock mode.

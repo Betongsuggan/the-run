@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import Users from '@lucide/svelte/icons/users';
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Footprints from '@lucide/svelte/icons/footprints';
@@ -20,6 +21,7 @@
 	});
 
 	const pendingInvites = $derived(invites.filter((i) => !i.acceptedAt));
+	const finishedCount = $derived(dataStore.registrations.filter((r) => r.status === 'finished').length);
 </script>
 
 <section class="space-y-6">
@@ -37,7 +39,9 @@
 		<StatCard icon={Users} label={i18n.m.admin.dashboard.runners} value={dataStore.runners.length} tone="primary" />
 		<StatCard icon={Calendar} label={i18n.m.admin.dashboard.events} value={dataStore.events.length} tone="secondary" />
 		<StatCard icon={Footprints} label={i18n.m.admin.dashboard.races} value={dataStore.races.length} tone="tertiary" />
-		<StatCard icon={Trophy} label={i18n.m.admin.dashboard.results} value={dataStore.results.length} tone="success" />
+		<a href={resolve('/admin/results')} class="block rounded-2xl hover:-translate-y-0.5 transition-transform">
+			<StatCard icon={Trophy} label={i18n.m.admin.dashboard.results} value={finishedCount} tone="success" />
+		</a>
 		<StatCard
 			icon={UserCog}
 			label={i18n.m.admin.dashboard.users}

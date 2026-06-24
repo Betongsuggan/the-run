@@ -2,20 +2,20 @@ import { browser } from '$app/environment';
 import {
 	events as seedEvents,
 	races as seedRaces,
-	results as seedResults,
+	registrations as seedRegistrations,
 	runners as seedRunners
 } from '$lib/mock/data';
-import type { Race, RaceEvent, Result, Runner } from '$lib/types';
+import type { Race, RaceEvent, Registration, Runner } from '$lib/types';
 
 const STORAGE_KEY = 'the-run.data';
-const VERSION = 1;
+const VERSION = 2;
 
 type Snapshot = {
 	v: number;
 	runners: Runner[];
 	events: RaceEvent[];
 	races: Race[];
-	results: Result[];
+	registrations: Registration[];
 };
 
 function seed(): Snapshot {
@@ -24,7 +24,7 @@ function seed(): Snapshot {
 		runners: structuredClone(seedRunners),
 		events: structuredClone(seedEvents),
 		races: structuredClone(seedRaces),
-		results: structuredClone(seedResults)
+		registrations: structuredClone(seedRegistrations)
 	};
 }
 
@@ -40,7 +40,7 @@ function load(): Snapshot {
 			runners: parsed.runners ?? [],
 			events: parsed.events ?? [],
 			races: parsed.races ?? [],
-			results: parsed.results ?? []
+			registrations: parsed.registrations ?? []
 		};
 	} catch {
 		return seed();
@@ -69,6 +69,17 @@ function nextId(prefix: string, existing: ReadonlyArray<{ id: string }>): string
 	return id;
 }
 
+export type RegistrationUpdate = {
+	id: string;
+	status?: Registration['status'];
+	finishSeconds?: number | null; // null clears
+	bib?: string;
+	category?: Registration['category'];
+	splits?: Registration['splits'];
+	conditions?: string;
+	notes?: string;
+};
+
 export const dataStore = {
 	get runners(): readonly Runner[] {
 		return snap.runners;
@@ -79,8 +90,8 @@ export const dataStore = {
 	get races(): readonly Race[] {
 		return snap.races;
 	},
-	get results(): readonly Result[] {
-		return snap.results;
+	get registrations(): readonly Registration[] {
+		return snap.registrations;
 	},
 
 	// Runners
@@ -95,7 +106,7 @@ export const dataStore = {
 	},
 	deleteRunner(id: string): void {
 		snap.runners = snap.runners.filter((r) => r.id !== id);
-		snap.results = snap.results.filter((r) => r.runnerId !== id);
+		snap.registrations = snap.registrations.filter((r) => r.runnerId !== id);
 		persist();
 	},
 
@@ -113,7 +124,7 @@ export const dataStore = {
 		const raceIdsToDrop = snap.races.filter((r) => r.eventId === id).map((r) => r.id);
 		snap.events = snap.events.filter((e) => e.id !== id);
 		snap.races = snap.races.filter((r) => r.eventId !== id);
-		snap.results = snap.results.filter((r) => !raceIdsToDrop.includes(r.raceId));
+		snap.registrations = snap.registrations.filter((r) => !raceIdsToDrop.includes(r.raceId));
 		persist();
 	},
 
@@ -129,23 +140,46 @@ export const dataStore = {
 	},
 	deleteRace(id: string): void {
 		snap.races = snap.races.filter((r) => r.id !== id);
-		snap.results = snap.results.filter((r) => r.raceId !== id);
+		snap.registrations = snap.registrations.filter((r) => r.raceId !== id);
 		persist();
 	},
 
-	// Results
-	upsertResult(input: Omit<Result, 'id'> & { id?: string }): Result {
-		const id = input.id ?? nextId('res-', snap.results);
-		const idx = snap.results.findIndex((r) => r.id === id);
-		const next: Result = { ...input, id };
-		if (idx >= 0) snap.results[idx] = next;
-		else snap.results.push(next);
+	// Registrations
+	upsertRegistration(input: Omit<Registration, 'id'> & { id?: string }): Registration {
+		const id = input.id ?? nextId('reg-', snap.registrations);
+		const idx = snap.registrations.findIndex((r) => r.id === id);
+		const next: Registration = { ...input, id };
+		if (idx >= 0) snap.registrations[idx] = next;
+		else snap.registrations.push(next);
 		persist();
 		return next;
 	},
-	deleteResult(id: string): void {
-		snap.results = snap.results.filter((r) => r.id !== id);
+	deleteRegistration(id: string): void {
+		snap.registrations = snap.registrations.filter((r) => r.id !== id);
 		persist();
+	},
+	bulkUpdateRegistrations(updates: RegistrationUpdate[]): Registration[] {
+		const byId: Record<string, Registration> = {};
+		for (const r of snap.registrations) byId[r.id] = r;
+		const touched: Registration[] = [];
+		for (const u of updates) {
+			const existing = byId[u.id];
+			if (!existing) continue;
+			const next: Registration = { ...existing };
+			if (u.status !== undefined) next.status = u.status;
+			if (u.bib !== undefined) next.bib = u.bib || undefined;
+			if (u.category !== undefined) next.category = u.category;
+			if (u.splits !== undefined) next.splits = u.splits;
+			if (u.conditions !== undefined) next.conditions = u.conditions || undefined;
+			if (u.notes !== undefined) next.notes = u.notes || undefined;
+			if (u.finishSeconds === null) next.finishSeconds = undefined;
+			else if (u.finishSeconds !== undefined) next.finishSeconds = u.finishSeconds;
+			byId[u.id] = next;
+			touched.push(next);
+		}
+		snap.registrations = snap.registrations.map((r) => byId[r.id] ?? r);
+		persist();
+		return touched;
 	},
 
 	reset(): void {
@@ -153,7 +187,7 @@ export const dataStore = {
 		snap.runners = s.runners;
 		snap.events = s.events;
 		snap.races = s.races;
-		snap.results = s.results;
+		snap.registrations = s.registrations;
 		persist();
 	}
 };

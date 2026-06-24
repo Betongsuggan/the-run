@@ -198,7 +198,18 @@ const sv = {
 			birthYearLabel: 'Födelseår',
 			columnName: 'Namn',
 			columnGender: 'Kön',
-			columnBirthYear: 'Födelseår'
+			columnBirthYear: 'Födelseår',
+			registerForRace: 'Anmäl till klass',
+			registerHeading: (name: string) => `Anmäl ${name}`,
+			raceSelectLabel: 'Klass',
+			noRacesAvailable: 'Den här löparen är redan anmäld till alla klasser.'
+		},
+		results: {
+			heading: 'Resultat',
+			subheading: 'Välj år och klass för att registrera tider.',
+			yearLabel: 'År',
+			raceLabel: 'Klass',
+			pickPrompt: 'Välj år och klass ovan för att se anmälda löpare.'
 		},
 		events: {
 			heading: 'Lopp',
@@ -220,28 +231,35 @@ const sv = {
 			columnLocation: 'Plats',
 			columnRaces: 'Antal klasser'
 		},
-		results: {
-			heading: 'Resultat',
-			add: 'Lägg till resultat',
-			edit: 'Redigera resultat',
-			runnerLabel: 'Löpare',
-			raceLabel: 'Klass',
+		races: {
+			pageBack: 'Tillbaka till loppet',
+			pageHeading: 'Anmälningar och resultat',
+			registerHeading: 'Anmäl löpare',
+			registerSubmit: 'Anmäl',
+			runnerSelectLabel: 'Löpare',
 			bibLabel: 'Startnummer',
-			finishTimeLabel: 'Måltid (mm:ss eller h:mm:ss)',
-			placementOverallLabel: 'Total placering',
-			placementCategoryLabel: 'Placering i kategori',
-			categoryGenderLabel: 'Kön (kategori)',
-			categoryAgeGroupLabel: 'Åldersgrupp (t.ex. M30-39)',
-			conditionsLabel: 'Förhållanden',
-			notesLabel: 'Anteckningar',
-			invalidTime: 'Ogiltigt tidsformat. Använd mm:ss eller h:mm:ss.',
-			eventFilterLabel: 'Filtrera på lopp',
-			eventFilterAll: 'Alla lopp',
-			columnEvent: 'Lopp',
-			columnRace: 'Klass',
+			noRunnersAvailable: 'Alla löpare är redan anmälda till denna klass.',
+			registeredHeading: (n: number) => (n === 1 ? '1 anmäld löpare' : `${n} anmälda löpare`),
 			columnRunner: 'Löpare',
-			columnTime: 'Tid',
-			columnPlacement: 'Placering'
+			columnBib: 'Startnr',
+			columnCategory: 'Kategori',
+			columnStatus: 'Status',
+			columnTime: 'Tid (mm:ss eller h:mm:ss)',
+			status: {
+				pending: 'Väntar',
+				finished: 'Klar',
+				dnf: 'DNF',
+				dns: 'DNS'
+			},
+			saveChanges: 'Spara ändringar',
+			saveChangesWithCount: (n: number) =>
+				n === 1 ? 'Spara 1 ändring' : `Spara ${n} ändringar`,
+			nothingToSave: 'Inga ändringar att spara.',
+			saveSuccess: 'Sparat.',
+			invalidTime: 'Ogiltigt tidsformat. Använd mm:ss eller h:mm:ss.',
+			mustHaveFinishTime: 'Status "Klar" kräver en tid.',
+			confirmRemoveRegistration: 'Ta bort denna anmälan? Eventuell tid och anteckningar försvinner.',
+			emptyState: 'Inga löpare är anmälda än. Använd formuläret ovan för att anmäla.'
 		},
 		users: {
 			heading: 'Adminanvändare',
@@ -456,7 +474,18 @@ const en: Catalog = {
 			birthYearLabel: 'Birth year',
 			columnName: 'Name',
 			columnGender: 'Gender',
-			columnBirthYear: 'Birth year'
+			columnBirthYear: 'Birth year',
+			registerForRace: 'Register for a race',
+			registerHeading: (name: string) => `Register ${name}`,
+			raceSelectLabel: 'Race',
+			noRacesAvailable: 'This runner is already registered for every race.'
+		},
+		results: {
+			heading: 'Results',
+			subheading: 'Pick a year and race to enter finish times.',
+			yearLabel: 'Year',
+			raceLabel: 'Race',
+			pickPrompt: 'Pick a year and race above to see the registered runners.'
 		},
 		events: {
 			heading: 'Events',
@@ -478,28 +507,35 @@ const en: Catalog = {
 			columnLocation: 'Location',
 			columnRaces: 'Races'
 		},
-		results: {
-			heading: 'Results',
-			add: 'Add result',
-			edit: 'Edit result',
-			runnerLabel: 'Runner',
-			raceLabel: 'Race',
+		races: {
+			pageBack: 'Back to event',
+			pageHeading: 'Registrations & results',
+			registerHeading: 'Register runner',
+			registerSubmit: 'Register',
+			runnerSelectLabel: 'Runner',
 			bibLabel: 'Bib',
-			finishTimeLabel: 'Finish time (mm:ss or h:mm:ss)',
-			placementOverallLabel: 'Overall placement',
-			placementCategoryLabel: 'Placement in category',
-			categoryGenderLabel: 'Category gender',
-			categoryAgeGroupLabel: 'Age group (e.g. M30-39)',
-			conditionsLabel: 'Conditions',
-			notesLabel: 'Notes',
-			invalidTime: 'Invalid time format. Use mm:ss or h:mm:ss.',
-			eventFilterLabel: 'Filter by event',
-			eventFilterAll: 'All events',
-			columnEvent: 'Event',
-			columnRace: 'Race',
+			noRunnersAvailable: 'Every runner is already registered for this race.',
+			registeredHeading: (n: number) => (n === 1 ? '1 registered runner' : `${n} registered runners`),
 			columnRunner: 'Runner',
-			columnTime: 'Time',
-			columnPlacement: 'Placement'
+			columnBib: 'Bib',
+			columnCategory: 'Category',
+			columnStatus: 'Status',
+			columnTime: 'Time (mm:ss or h:mm:ss)',
+			status: {
+				pending: 'Pending',
+				finished: 'Finished',
+				dnf: 'DNF',
+				dns: 'DNS'
+			},
+			saveChanges: 'Save changes',
+			saveChangesWithCount: (n: number) =>
+				n === 1 ? 'Save 1 change' : `Save ${n} changes`,
+			nothingToSave: 'No changes to save.',
+			saveSuccess: 'Saved.',
+			invalidTime: 'Invalid time format. Use mm:ss or h:mm:ss.',
+			mustHaveFinishTime: 'Finished status requires a finish time.',
+			confirmRemoveRegistration: 'Remove this registration? Any recorded time and notes will be discarded.',
+			emptyState: 'No runners registered yet. Use the form above to register.'
 		},
 		users: {
 			heading: 'Admin users',

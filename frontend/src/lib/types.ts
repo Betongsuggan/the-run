@@ -51,6 +51,21 @@ export type Result = {
 	notes?: string;
 };
 
+export type RegistrationStatus = 'pending' | 'finished' | 'dnf' | 'dns';
+
+export type Registration = {
+	id: ID;
+	raceId: ID;
+	runnerId: ID;
+	bib?: string;
+	category?: Category;
+	status: RegistrationStatus;
+	finishSeconds?: number;
+	splits?: Split[];
+	conditions?: string;
+	notes?: string;
+};
+
 export type ResultExpanded = Result & {
 	race: Race;
 	event: RaceEvent;

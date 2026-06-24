@@ -6,7 +6,7 @@
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import Users from '@lucide/svelte/icons/users';
 	import Calendar from '@lucide/svelte/icons/calendar';
-	import Trophy from '@lucide/svelte/icons/trophy';
+	import Timer from '@lucide/svelte/icons/timer';
 	import UserCog from '@lucide/svelte/icons/user-cog';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -63,7 +63,7 @@
 				</li>
 				<li>
 					<a href={resolve('/admin/results')} class={navClass(isActive(resolve('/admin/results'), false))}>
-						<Trophy class="size-4" aria-hidden="true" />
+						<Timer class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.results}
 					</a>
 				</li>

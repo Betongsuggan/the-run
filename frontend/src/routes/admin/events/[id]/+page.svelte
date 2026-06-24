@@ -5,6 +5,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { dataStore } from '$lib/store/data.svelte';
 	import { adminCreateRace, adminDeleteRace, adminUpdateRace } from '$lib/admin/api';
@@ -128,6 +129,14 @@
 									<td>{formatDistance(race.distanceMeters)}</td>
 									<td>{i18n.m.discipline[race.discipline]}</td>
 									<td class="text-right space-x-1">
+										<a
+											href={resolve('/admin/races/[raceId]', { raceId: race.id })}
+											class="btn-icon btn-icon-sm hover:bg-primary-100 hover:text-primary-700 dark:hover:bg-primary-900/40 dark:hover:text-primary-200 inline-flex"
+											aria-label={i18n.m.admin.races.pageHeading}
+											title={i18n.m.admin.races.pageHeading}
+										>
+											<ClipboardList class="size-4" />
+										</a>
 										<button
 											type="button"
 											class="btn-icon btn-icon-sm hover:bg-surface-100-900"

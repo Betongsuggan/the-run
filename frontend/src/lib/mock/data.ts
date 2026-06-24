@@ -1,4 +1,4 @@
-import type { Race, RaceEvent, Result, Runner } from '$lib/types';
+import type { Race, RaceEvent, Registration, Runner } from '$lib/types';
 
 export const runners: Runner[] = [
 	{ id: 'r-birger', name: 'Birger Rydback', gender: 'M', birthYear: 1988 },
@@ -99,94 +99,84 @@ const splits10k = (total: number): { km: number; timeSeconds: number }[] => {
 	}));
 };
 
-export const results: Result[] = [
+export const registrations: Registration[] = [
 	{
-		id: 'res-1',
+		id: 'reg-1',
 		raceId: 'rc-2025-5k-walk',
 		runnerId: 'r-birger',
 		bib: '142',
-		finishSeconds: 36 * 60 + 42,
 		category: { gender: 'M', ageGroup: 'M30-39' },
-		placementOverall: 7,
-		placementCategory: 3,
+		status: 'finished',
+		finishSeconds: 36 * 60 + 42,
 		splits: splits5k(36 * 60 + 42),
 		conditions: 'Sunny, 18°C, light wind',
 		notes: 'Nice steady tempo all the way.'
 	},
 	{
-		id: 'res-3',
+		id: 'reg-3',
 		raceId: 'rc-2026-5k-walk',
 		runnerId: 'r-birger',
 		bib: '88',
-		finishSeconds: 35 * 60 + 18,
 		category: { gender: 'M', ageGroup: 'M30-39' },
-		placementOverall: 5,
-		placementCategory: 2,
+		status: 'finished',
+		finishSeconds: 35 * 60 + 18,
 		splits: splits5k(35 * 60 + 18),
 		conditions: 'Overcast, 14°C',
 		notes: 'New 5K walk PB.'
 	},
 	{
-		id: 'res-6',
+		id: 'reg-6',
 		raceId: 'rc-2026-10k-run',
 		runnerId: 'r-luisa',
 		bib: '301',
-		finishSeconds: 53 * 60 + 24,
 		category: { gender: 'F', ageGroup: 'F30-39' },
-		placementOverall: 22,
-		placementCategory: 5,
+		status: 'finished',
+		finishSeconds: 53 * 60 + 24,
 		splits: splits10k(53 * 60 + 24),
 		conditions: 'Overcast, 15°C',
 		notes: 'First 10K. Held back the first half and finished strong.'
 	},
 	{
-		id: 'res-7',
+		id: 'reg-7',
 		raceId: 'rc-2025-10k-run',
 		runnerId: 'r-kalle',
 		bib: '210',
-		finishSeconds: 45 * 60 + 12,
 		category: { gender: 'M', ageGroup: 'M50-59' },
-		placementOverall: 17,
-		placementCategory: 1,
+		status: 'finished',
+		finishSeconds: 45 * 60 + 12,
 		splits: splits10k(45 * 60 + 12),
 		conditions: 'Sunny, 18°C',
 		notes: 'Veteran category win.'
 	},
 	{
-		id: 'res-8',
+		id: 'reg-8',
 		raceId: 'rc-2026-10k-run',
 		runnerId: 'r-kalle',
 		bib: '210',
-		finishSeconds: 44 * 60 + 58,
 		category: { gender: 'M', ageGroup: 'M50-59' },
-		placementOverall: 14,
-		placementCategory: 1,
-		splits: splits10k(44 * 60 + 58),
-		conditions: 'Overcast, 15°C',
-		notes: ''
+		status: 'finished',
+		finishSeconds: 44 * 60 + 58,
+		conditions: 'Overcast, 15°C'
 	},
 	{
-		id: 'res-9',
+		id: 'reg-9',
 		raceId: 'rc-2025-kids',
 		runnerId: 'r-viktoria',
 		bib: 'K-44',
-		finishSeconds: 6 * 60 + 12,
 		category: { gender: 'F', ageGroup: 'U12' },
-		placementOverall: 6,
-		placementCategory: 3,
+		status: 'finished',
+		finishSeconds: 6 * 60 + 12,
 		conditions: 'Sunny, 18°C',
 		notes: 'First medal!'
 	},
 	{
-		id: 'res-10',
+		id: 'reg-10',
 		raceId: 'rc-2026-kids',
 		runnerId: 'r-viktoria',
 		bib: 'K-44',
-		finishSeconds: 5 * 60 + 48,
 		category: { gender: 'F', ageGroup: 'U12' },
-		placementOverall: 4,
-		placementCategory: 2,
-		conditions: 'Overcast, 15°C',
-		notes: ''
+		status: 'finished',
+		finishSeconds: 5 * 60 + 48,
+		conditions: 'Overcast, 15°C'
 	}
 ];

@@ -1,6 +1,16 @@
 import { i18n } from '$lib/i18n/state.svelte';
 import type { Category, Gender, Race } from '$lib/types';
 
+export function parseFinishTime(input: string): number | null {
+	const m = input.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+	if (!m) return null;
+	const h = m[1] ? Number(m[1]) : 0;
+	const mins = Number(m[2]);
+	const secs = Number(m[3]);
+	if (mins > 59 || secs > 59) return null;
+	return h * 3600 + mins * 60 + secs;
+}
+
 export function formatTime(totalSeconds: number): string {
 	const h = Math.floor(totalSeconds / 3600);
 	const m = Math.floor((totalSeconds % 3600) / 60);
