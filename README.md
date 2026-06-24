@@ -29,6 +29,9 @@ Common workflows are wired into a `Justfile` at the repo root. Run `just` to
 list every recipe:
 
 ```sh
+just sso-login           # aws sso login + sts get-caller-identity
+just whoami              # show the active AWS identity
+
 just dev-backend         # Go API on :8080
 just dev-frontend        # SvelteKit dev server on :5173
 
@@ -45,6 +48,10 @@ just deploy              # build + pulumi up
 just invalidate          # bust the CloudFront cache
 just verify              # curl https://api.<DOMAIN>/hello
 ```
+
+All recipes that touch AWS honor an `AWS_PROFILE` variable. The Justfile
+defaults it to `betongsuggan-prod`; override per-invocation with
+`AWS_PROFILE=other just deploy` or set it once in your shell.
 
 The sections below explain what these recipes do under the hood — useful when
 something breaks or you need to deviate from the happy path.
@@ -64,25 +71,35 @@ nix develop
 **Preferred: IAM Identity Center (SSO).** Assumes you've enabled Identity
 Center in the AWS console and assigned `AdministratorAccess` to yourself.
 
+One-time, register the profile with `aws-cli`:
+
 ```sh
 aws configure sso
 # SSO start URL:    https://<your-org>.awsapps.com/start
 # SSO region:       eu-north-1   (or wherever Identity Center lives)
-# Profile name:     the-run
+# Profile name:     betongsuggan-prod    (matches the Justfile default)
 # CLI region:       eu-north-1
+```
 
-aws sso login --profile the-run
-export AWS_PROFILE=the-run
-aws sts get-caller-identity   # must succeed before continuing
+If you pick a different profile name, point the Justfile at it by exporting
+`AWS_PROFILE` in your shell (or prefixing individual commands):
+
+```sh
+export AWS_PROFILE=my-other-profile
+```
+
+Then, each session:
+
+```sh
+just sso-login    # aws sso login + sts get-caller-identity for $AWS_PROFILE
 ```
 
 **Fallback: IAM user with access keys** (acceptable for a personal dev account):
 
-1. IAM console → create user `the-run-dev`, no console access, attach
-   `AdministratorAccess`.
+1. IAM console → create a user, no console access, attach `AdministratorAccess`.
 2. Create an access key (CLI use case). Store in your password manager.
-3. `aws configure --profile the-run` → paste credentials, region `eu-north-1`.
-4. `export AWS_PROFILE=the-run`.
+3. `aws configure --profile betongsuggan-prod` → paste credentials, region `eu-north-1`.
+4. `export AWS_PROFILE=betongsuggan-prod` (or whatever profile name you used).
 
 Never commit credentials.
 

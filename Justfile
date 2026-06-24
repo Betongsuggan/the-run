@@ -1,8 +1,24 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+# AWS profile used by aws-cli and Pulumi. Override with AWS_PROFILE=foo or
+# `just aws_profile=foo <recipe>`.
+export AWS_PROFILE := env_var_or_default("AWS_PROFILE", "betongsuggan-prod")
+
 # List available recipes
 default:
     @just --list --unsorted
+
+# ─── AWS auth ─────────────────────────────────────────────────────────
+
+# Log in to AWS IAM Identity Center for $AWS_PROFILE
+sso-login:
+    aws sso login --profile "$AWS_PROFILE"
+    aws sts get-caller-identity --profile "$AWS_PROFILE"
+
+# Print the active AWS identity for $AWS_PROFILE
+whoami:
+    @echo "AWS_PROFILE=$AWS_PROFILE"
+    aws sts get-caller-identity --profile "$AWS_PROFILE"
 
 # ─── Local dev ─────────────────────────────────────────────────────────
 
