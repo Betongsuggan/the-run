@@ -33,6 +33,7 @@ just sso-login                 # aws sso login + sts get-caller-identity
 just whoami                    # show the active AWS identity
 just bootstrap-pulumi-state    # one-time: S3 bucket for Pulumi state + pulumi login
 just pulumi-login              # pulumi login to this account's state bucket
+just pulumi <args...>          # run any pulumi command with SSO creds exported
 
 just dev-backend         # Go API on :8080
 just dev-frontend        # SvelteKit dev server on :5173
@@ -67,6 +68,21 @@ nix develop
 ```
 
 (or `direnv allow` if you use direnv — `.envrc` is wired up.)
+
+If you use direnv, copy the local-overrides template to drop in your Pulumi
+passphrase (and optionally a non-default `AWS_PROFILE`):
+
+```sh
+cp .envrc.local.example .envrc.local
+$EDITOR .envrc.local          # set PULUMI_CONFIG_PASSPHRASE
+direnv allow
+```
+
+With this in place, `.envrc` will export `AWS_PROFILE`, materialize your SSO
+credentials, and set `PULUMI_CONFIG_PASSPHRASE` every time you `cd` into the
+repo — so `pulumi`, `aws`, and the Justfile recipes all work without manual
+exports. After `just sso-login`, run `direnv reload` (or `cd .`) to pick up
+the refreshed credentials.
 
 ### 2. AWS credentials
 
@@ -129,14 +145,16 @@ export PULUMI_CONFIG_PASSPHRASE="<your-passphrase>"
 
 ### 4. Configure the stack
 
+Use `just pulumi` (wraps `pulumi -C infra` and exports SSO credentials —
+Pulumi's S3 backend won't auto-resolve them otherwise):
+
 ```sh
-cd infra
-pulumi stack init dev
-pulumi config set the-run:domain        example.com   # ← your domain
-pulumi config set the-run:apiSubdomain  api
-pulumi config set the-run:siteSubdomain ""            # apex; or "www"
-pulumi config set the-run:createHostedZone true
-pulumi config set aws:region            eu-north-1
+just pulumi stack init dev
+just pulumi config set the-run:domain        example.com   # ← your domain
+just pulumi config set the-run:apiSubdomain  api
+just pulumi config set the-run:siteSubdomain ""            # apex; or "www"
+just pulumi config set the-run:createHostedZone true
+just pulumi config set aws:region            eu-north-1
 ```
 
 If your Route53 hosted zone already exists, set

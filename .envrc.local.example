@@ -1,0 +1,8 @@
+# Copy to .envrc.local and fill in. `.envrc` sources this file if present.
+# Gitignored — safe to put secrets here.
+
+# Passphrase Pulumi uses to encrypt stack secrets (see README §3).
+export PULUMI_CONFIG_PASSPHRASE="<your-passphrase>"
+
+# Uncomment to use a different AWS profile than the default.
+# export AWS_PROFILE=my-other-profile

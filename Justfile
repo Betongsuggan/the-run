@@ -62,6 +62,15 @@ pulumi-login region='eu-north-1':
     ACCT=$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text)
     pulumi login "s3://the-run-pulumi-state-$ACCT?region={{region}}"
 
+# Run any pulumi command in infra/ with SSO credentials exported. Use this for
+# anything not already wrapped in a recipe (e.g. `just pulumi stack init dev`,
+# `just pulumi config set the-run:domain example.com`).
+pulumi *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+    pulumi -C infra {{args}}
+
 # ─── Local dev ─────────────────────────────────────────────────────────
 
 # Run the Go API locally on :8080
@@ -88,6 +97,7 @@ build-frontend mode='local':
     case "{{mode}}" in
       local) pnpm build ;;
       prod)
+        eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
         DOMAIN=$(pulumi -C ../infra config get the-run:domain)
         PUBLIC_API_BASE_URL="https://api.${DOMAIN}" pnpm build
         ;;
@@ -134,20 +144,30 @@ check: lint format-check typecheck test
 
 # Build everything and apply the Pulumi stack
 deploy: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     pulumi -C infra up
 
 # Build everything and show the Pulumi diff (no apply)
 deploy-preview: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     pulumi -C infra preview
 
 # Invalidate the entire CloudFront distribution
 invalidate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     aws cloudfront create-invalidation --distribution-id "$(pulumi -C infra stack output cloudFrontDistributionId)" --paths '/*'
 
 # Curl the deployed API and print the URLs
 verify:
     #!/usr/bin/env bash
     set -euo pipefail
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     DOMAIN=$(pulumi -C infra config get the-run:domain)
     echo "GET https://api.${DOMAIN}/hello"
     curl -fsSL "https://api.${DOMAIN}/hello" | jq .
