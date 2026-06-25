@@ -8,6 +8,7 @@ import (
 	"github.com/BirgerRydback/the-run/infra/backend"
 	"github.com/BirgerRydback/the-run/infra/database"
 	infradns "github.com/BirgerRydback/the-run/infra/dns"
+	"github.com/BirgerRydback/the-run/infra/email"
 	"github.com/BirgerRydback/the-run/infra/frontend"
 )
 
@@ -102,7 +103,15 @@ func runAWS(ctx *pulumi.Context, cfg *config.Config) error {
 		return err
 	}
 
-	be, err := backend.Setup(ctx, apiFQDN, siteFQDN, domain, zoneID, tables)
+	// SES sending domain + DKIM + MAIL FROM + configuration set. Senders
+	// (guardian magic links, DSR magic links) plug in via backend env vars
+	// — see infra/backend below.
+	em, err := email.Setup(ctx, siteFQDN, "eu-north-1", zoneID)
+	if err != nil {
+		return err
+	}
+
+	be, err := backend.Setup(ctx, apiFQDN, siteFQDN, domain, zoneID, tables, em)
 	if err != nil {
 		return err
 	}
@@ -122,6 +131,10 @@ func runAWS(ctx *pulumi.Context, cfg *config.Config) error {
 	ctx.Export("authAttemptsTableName", tables.AuthAttempts.Name)
 	ctx.Export("jwtSecretArn", be.JWTSecret.Arn)
 	ctx.Export("hostedZoneNameServers", nameServers)
+	ctx.Export("sesSendingDomain", em.Identity.EmailIdentity)
+	ctx.Export("sesMailFromDomain", pulumi.String(em.MailFromDomain))
+	ctx.Export("sesConfigurationSet", em.ConfigurationSet.ConfigurationSetName)
+	ctx.Export("sesSenderAddress", pulumi.String(em.SenderAddress))
 
 	return nil
 }

@@ -149,15 +149,33 @@ const sv = {
 		consentMarketingLabel: 'Skicka mig nyheter och inbjudningar',
 		consentMarketingHelp:
 			'Sällsynta utskick om kommande lopp. Du kan när som helst avregistrera dig.',
+		guardianNoticeHeading: 'Målsmans samtycke krävs',
+		guardianNoticeUnder13:
+			'Eftersom löparen är under 13 år behöver vi en målsmans samtycke. Ange målsmans e-post ovan; vi mejlar en bekräftelselänk som måste klickas inom 7 dagar för att anmälan ska bli aktiv.',
+		guardianNoticeTeen:
+			'Löparen är under 18 år. Anmäl gärna med målsmans kontaktuppgifter så vi kan nå er om något händer på loppet.',
+		guardianConsentLabel: 'Jag är förälder/målsman och samtycker till att barnet anmäls.',
 		submit: 'Skicka anmälan',
 		submitting: 'Skickar…',
 		successHeading: 'Tack — vi har tagit emot din anmälan!',
 		successBody: 'Vi hör av oss med mer information inför loppet.',
+		successHeadingGuardian: 'Nästan klart — kolla din e-post',
+		successBodyGuardian:
+			'Vi har skickat en bekräftelselänk till målsmans e-post. Klicka på länken inom 7 dagar för att slutföra anmälan.',
 		registerAnother: 'Anmäl en till',
 		noUpcomingRaces: 'Det finns inga kommande lopp att anmäla sig till just nu.',
 		eventPast: 'Det här loppet har redan ägt rum och går inte att anmäla sig till.',
 		errorPrefix: 'Något gick fel:',
 		botProtectionNote: 'Skyddat mot automatisk registrering.'
+	},
+	guardianConsent: {
+		verifying: 'Verifierar bekräftelselänken …',
+		successHeading: 'Tack — anmälan är nu aktiv',
+		successBody: 'Din målsmans-bekräftelse är registrerad. Barnet är nu anmäld till loppet.',
+		errorHeading: 'Länken kunde inte verifieras',
+		errorBody:
+			'Länken är ogiltig, har redan använts, eller har förfallit. Om du behöver hjälp — anmäl barnet igen så skickar vi en ny länk.',
+		missingToken: 'Ingen kod fanns i URL:en.'
 	},
 	admin: {
 		title: 'Admin',
@@ -447,15 +465,34 @@ const en: Catalog = {
 		consentMarketingLabel: 'Send me race news and invitations',
 		consentMarketingHelp:
 			'Occasional updates about upcoming races. You can unsubscribe at any time.',
+		guardianNoticeHeading: 'Guardian consent required',
+		guardianNoticeUnder13:
+			"Because the runner is under 13, we need a parent or guardian's consent. Enter the guardian's email above; we'll send a confirmation link that must be clicked within 7 days for the registration to take effect.",
+		guardianNoticeTeen:
+			'The runner is under 18. Please use a parent or guardian as the contact so we can reach you if anything happens on race day.',
+		guardianConsentLabel: 'I am the parent/guardian and consent to the registration of this child.',
 		submit: 'Submit registration',
 		submitting: 'Submitting…',
 		successHeading: "Thanks — we've received your registration!",
 		successBody: "We'll be in touch with more information ahead of the race.",
+		successHeadingGuardian: 'Almost done — check your email',
+		successBodyGuardian:
+			"We've sent a confirmation link to the guardian's email. Click it within 7 days to complete the registration.",
 		registerAnother: 'Sign someone else up',
 		noUpcomingRaces: 'There are no upcoming races to sign up for right now.',
 		eventPast: 'This race has already taken place and is no longer open for sign-ups.',
 		errorPrefix: 'Something went wrong:',
 		botProtectionNote: 'Protected against automated sign-ups.'
+	},
+	guardianConsent: {
+		verifying: 'Verifying confirmation link …',
+		successHeading: 'Thanks — the registration is now active',
+		successBody:
+			'Your guardian consent has been recorded. The child is now registered for the race.',
+		errorHeading: 'The link could not be verified',
+		errorBody:
+			"The link is invalid, already used, or expired. If you need help, register the child again — we'll send a new link.",
+		missingToken: 'No token was supplied in the URL.'
 	},
 	admin: {
 		title: 'Admin',

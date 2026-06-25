@@ -112,6 +112,10 @@ dev-backend:
     export RACES_TABLE_NAME=the-run-races
     export ACCOUNTS_TABLE_NAME=the-run-accounts
     export AUTH_ATTEMPTS_TABLE_NAME=the-run-auth-attempts
+    export GUARDIAN_TOKENS_TABLE_NAME=the-run-guardian-tokens
+    # Site base URL used when composing guardian-consent magic links (A0.4).
+    # Local dev points at the SvelteKit dev server.
+    export SITE_BASE_URL=http://localhost:5173
     # Local dev only: a fixed JWT_SECRET avoids the Secrets Manager dependency.
     # Production reads from Secrets Manager via JWT_SECRET_ARN — see infra/backend.
     export JWT_SECRET=local-dev-only-do-not-ship-this-must-be-32-chars-or-more
@@ -152,7 +156,8 @@ create-admin email='' password='' force='':
     : "${RACES_TABLE_NAME:=the-run-races}"
     : "${ACCOUNTS_TABLE_NAME:=the-run-accounts}"
     : "${AUTH_ATTEMPTS_TABLE_NAME:=the-run-auth-attempts}"
-    export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME
+    : "${GUARDIAN_TOKENS_TABLE_NAME:=the-run-guardian-tokens}"
+    export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME GUARDIAN_TOKENS_TABLE_NAME
     if [ -n "$FORCE" ]; then
       go run ./cmd/admin -email "$EMAIL" -password "$PASSWORD" -force
     else
@@ -187,6 +192,53 @@ dev-frontend:
 # with the fixture in backend/cmd/seed/main.go. Idempotent.
 seed-dev api='http://localhost:8080':
     cd backend && API_BASE_URL={{api}} go run ./cmd/seed
+
+# ─── Email / SES (A1.5) ───────────────────────────────────────────────
+
+# Verify a recipient email address for SES sandbox-mode sending. SES will only
+# deliver to verified addresses until we request production access. Run once
+# per address you intend to send to during testing. The recipient will get a
+# verification email from AWS; clicking the link verifies them.
+# Usage:  just verify-email-recipient you@example.com
+verify-email-recipient email='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    EMAIL="{{email}}"
+    EMAIL="${EMAIL#email=}"
+    if [ -z "$EMAIL" ]; then
+      echo "usage: just verify-email-recipient EMAIL" >&2
+      exit 2
+    fi
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+    aws sesv2 create-email-identity --email-identity "$EMAIL" --region eu-north-1 || true
+    echo "Sent verification request to $EMAIL — click the link in the email AWS just sent."
+    echo "Check status with:"
+    echo "  aws sesv2 get-email-identity --email-identity \"$EMAIL\" --region eu-north-1 --query 'VerifiedForSendingStatus'"
+
+# Send a test email via the deployed SES setup. Recipient must be verified
+# (see verify-email-recipient) while we're in the sandbox. Uses the sender
+# address Pulumi exported, going through the the-run-events configuration set
+# so bounce/complaint metrics land in CloudWatch.
+# Usage:  just send-test-email you@example.com
+send-test-email email='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    EMAIL="{{email}}"
+    EMAIL="${EMAIL#email=}"
+    if [ -z "$EMAIL" ]; then
+      echo "usage: just send-test-email EMAIL" >&2
+      exit 2
+    fi
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+    SENDER=$(pulumi -C infra stack output sesSenderAddress)
+    CONFIG_SET=$(pulumi -C infra stack output sesConfigurationSet)
+    echo "Sending test email from $SENDER → $EMAIL via $CONFIG_SET ..."
+    aws sesv2 send-email --region eu-north-1 \
+      --from-email-address "$SENDER" \
+      --configuration-set-name "$CONFIG_SET" \
+      --destination "ToAddresses=$EMAIL" \
+      --content '{"Simple":{"Subject":{"Data":"the-run SES pipeline test","Charset":"UTF-8"},"Body":{"Text":{"Data":"If you see this, the verified domain + DKIM + MAIL FROM + configuration set are all working.","Charset":"UTF-8"}}}}' \
+      --email-tags 'Name=MessageTag,Value=the-run'
 
 # Fire N concurrent POSTs at /registrations and print the status-code histogram.
 # The payload trips the honeypot, so no rows are ever written — this isolates

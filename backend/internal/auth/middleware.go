@@ -59,6 +59,21 @@ func RequireAdmin(cfg Config) func(huma.Context, func(huma.Context)) {
 	}
 }
 
+// MaybeAdmin is RequireAdmin's softer sibling: it tries to parse a session
+// cookie and attaches the claims to the request context if valid, but never
+// rejects the request. Used by public endpoints (e.g. GET /runners) that need
+// to project differently for authenticated admins — the public projection
+// redacts opt-out runners and minors, the admin projection doesn't.
+func MaybeAdmin(cfg Config) func(huma.Context, func(huma.Context)) {
+	return func(hctx huma.Context, next func(huma.Context)) {
+		token := readCookieFromHumaCtx(hctx, SessionCookieName)
+		if claims, err := ParseSession(cfg, token); err == nil && claims.IsAdmin {
+			hctx = huma.WithContext(hctx, WithClaims(hctx.Context(), claims))
+		}
+		next(hctx)
+	}
+}
+
 // readCookieFromHumaCtx parses the Cookie header by name. Huma abstracts away
 // http.Request, so we walk the headers directly. (The header is a single line
 // with semicolon-separated name=value pairs per RFC 6265.)

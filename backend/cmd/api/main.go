@@ -13,8 +13,8 @@ import (
 
 	"github.com/BirgerRydback/the-run/backend/internal/api"
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
+	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
-	"github.com/BirgerRydback/the-run/backend/internal/turnstile"
 )
 
 func main() {
@@ -30,13 +30,16 @@ func main() {
 		log.Fatalf("init auth config: %v", err)
 	}
 
-	turnstileCfg, err := turnstile.LoadConfig(ctx)
+	sender, sesActive, err := email.NewSenderFromEnv(ctx)
 	if err != nil {
-		log.Fatalf("init turnstile config: %v", err)
+		log.Fatalf("init email sender: %v", err)
+	}
+	if sesActive {
+		log.Printf("email: SES sender configured")
 	}
 
 	mux := http.NewServeMux()
-	api.Register(mux, dynStore, authCfg, turnstileCfg)
+	api.Register(mux, dynStore, authCfg, sender)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") == "" {
 		addr := ":8080"

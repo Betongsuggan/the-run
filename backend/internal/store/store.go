@@ -94,5 +94,16 @@ type Store interface {
 	GetRegistration(ctx context.Context, raceID, runnerID string) (*models.Registration, error)
 	GetRegistrationByID(ctx context.Context, id string) (*models.Registration, error)
 	UpdateRegistration(ctx context.Context, u RegistrationUpdate) (*models.Registration, error)
+	UpdateRegistrationStatus(ctx context.Context, registrationID, status string) error
 	DeleteRegistration(ctx context.Context, raceID, runnerID string) error
+
+	// Guardian tokens (GDPR A0.4) — magic-link receipts for parental consent
+	// on under-13 registrations. CreateGuardianToken returns ErrAlreadyExists
+	// on token-id collision (effectively impossible with random IDs).
+	// MarkGuardianTokenUsed returns ErrAlreadyExists if the token was used
+	// in a concurrent request.
+	CreateGuardianToken(ctx context.Context, t models.GuardianToken) error
+	GetGuardianToken(ctx context.Context, id string) (*models.GuardianToken, error)
+	MarkGuardianTokenUsed(ctx context.Context, id string, at time.Time) error
+	DeleteGuardianToken(ctx context.Context, id string) error
 }

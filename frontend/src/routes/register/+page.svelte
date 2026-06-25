@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
-	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import ClipboardPlus from '@lucide/svelte/icons/clipboard-plus';
 	import Shield from '@lucide/svelte/icons/shield';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
@@ -12,7 +11,6 @@
 	import { formatDate, formatRaceName } from '$lib/format';
 	import Hero from '$lib/components/Hero.svelte';
 	import SectionHeader from '$lib/components/SectionHeader.svelte';
-	import Turnstile from '$lib/components/Turnstile.svelte';
 
 	type UpcomingRace = { race: Race; event: RaceEvent };
 
@@ -28,23 +26,47 @@
 	// false (opt-in). The backend stamps the policy version + timestamp.
 	let publicResults = $state(true);
 	let marketing = $state(false);
-	// Cloudflare Turnstile token; empty when the widget hasn't issued one yet
-	// or the site key isn't configured (local dev). Backend mirrors the skip
-	// behavior server-side when its own secret is unset.
-	let turnstileToken = $state('');
-	// Honeypot — kept empty by real users; bots tend to fill every field.
-	// Defence-in-depth alongside Turnstile.
+	// Guardian-consent checkbox — only surfaced when the runner is under 13
+	// at the selected race's date. Backend rejects with 422 if the runner is
+	// under 13 and this isn't set.
+	let guardianConsent = $state(false);
+	// Honeypot — kept empty by real users; bots tend to fill every field. The
+	// only client-visible bot defence; API Gateway throttling on POST
+	// /registrations is the server-side layer.
 	let website = $state('');
 
 	let submitting = $state(false);
 	let errorMsg = $state<string | null>(null);
 	let success = $state(false);
+	let successStatus = $state<'received' | 'pending_guardian_consent' | ''>('');
 
 	const today = new Date().toISOString().slice(0, 10);
 
 	function isUpcoming(event: RaceEvent): boolean {
 		return event.date >= today;
 	}
+
+	// Selected race's event date, used to compute age-at-race for the minor
+	// branching. Falls back to today before a race is selected.
+	const selectedRaceDate = $derived(
+		upcoming.find((u) => u.race.id === raceId)?.event.date ?? today
+	);
+
+	// Age the runner will be on race day, given the DOB they've typed. Returns
+	// null until both fields are populated so the UI doesn't flash a "kids
+	// notice" before the user has filled in anything.
+	const ageAtRace = $derived.by((): number | null => {
+		if (!dateOfBirth) return null;
+		const dob = new Date(dateOfBirth);
+		const race = new Date(selectedRaceDate);
+		if (Number.isNaN(dob.getTime()) || Number.isNaN(race.getTime())) return null;
+		let age = race.getFullYear() - dob.getFullYear();
+		const m = race.getMonth() - dob.getMonth();
+		if (m < 0 || (m === 0 && race.getDate() < dob.getDate())) age--;
+		return age;
+	});
+	const isUnder13 = $derived(ageAtRace !== null && ageAtRace < 13);
+	const isTeen = $derived(ageAtRace !== null && ageAtRace >= 13 && ageAtRace < 18);
 
 	onMount(async () => {
 		const events = await listEvents();
@@ -74,7 +96,7 @@
 		submitting = true;
 		errorMsg = null;
 		try {
-			await registerForRace({
+			const result = await registerForRace({
 				name: name.trim(),
 				email: email.trim(),
 				dateOfBirth,
@@ -82,10 +104,12 @@
 				raceId,
 				publicResults,
 				marketing,
-				turnstileToken,
+				guardianConsent: isUnder13 ? guardianConsent : undefined,
 				website
 			});
 			success = true;
+			successStatus =
+				result.status === 'pending_guardian_consent' ? 'pending_guardian_consent' : 'received';
 		} catch (err) {
 			errorMsg = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -95,13 +119,14 @@
 
 	function resetForAnother() {
 		success = false;
+		successStatus = '';
 		name = '';
 		email = '';
 		dateOfBirth = '';
 		gender = 'M';
 		publicResults = true;
 		marketing = false;
-		turnstileToken = '';
+		guardianConsent = false;
 		errorMsg = null;
 	}
 </script>
@@ -133,8 +158,13 @@
 				<div class="flex items-start gap-3">
 					<CheckCircle2 class="size-6 text-success-600 dark:text-success-300 shrink-0 mt-0.5" />
 					<div>
-						<h2 class="text-lg font-semibold">{i18n.m.register.successHeading}</h2>
-						<p class="opacity-80 mt-1">{i18n.m.register.successBody}</p>
+						{#if successStatus === 'pending_guardian_consent'}
+							<h2 class="text-lg font-semibold">{i18n.m.register.successHeadingGuardian}</h2>
+							<p class="opacity-80 mt-1">{i18n.m.register.successBodyGuardian}</p>
+						{:else}
+							<h2 class="text-lg font-semibold">{i18n.m.register.successHeading}</h2>
+							<p class="opacity-80 mt-1">{i18n.m.register.successBody}</p>
+						{/if}
 					</div>
 				</div>
 				<div class="flex flex-wrap items-center gap-2">
@@ -193,6 +223,30 @@
 					/>
 				</label>
 
+				{#if isUnder13}
+					<div
+						class="rounded-md border border-warning-300 dark:border-warning-700 bg-warning-50 dark:bg-warning-900/20 p-4 text-sm space-y-2"
+					>
+						<p class="font-medium">{i18n.m.register.guardianNoticeHeading}</p>
+						<p class="opacity-90">{i18n.m.register.guardianNoticeUnder13}</p>
+						<label class="flex items-start gap-3 pt-1">
+							<input
+								type="checkbox"
+								class="checkbox mt-0.5"
+								required
+								bind:checked={guardianConsent}
+							/>
+							<span class="text-sm font-medium">{i18n.m.register.guardianConsentLabel}</span>
+						</label>
+					</div>
+				{:else if isTeen}
+					<div
+						class="rounded-md border border-surface-300 dark:border-surface-700 bg-surface-100-900 p-4 text-sm"
+					>
+						<p>{i18n.m.register.guardianNoticeTeen}</p>
+					</div>
+				{/if}
+
 				<label class="block space-y-1">
 					<span class="text-sm font-medium">{i18n.m.register.genderLabel}</span>
 					<select required bind:value={gender} class="select">
@@ -234,12 +288,6 @@
 					</label>
 				</div>
 
-				{#if PUBLIC_TURNSTILE_SITE_KEY}
-					<div class="pt-1">
-						<Turnstile siteKey={PUBLIC_TURNSTILE_SITE_KEY} onToken={(t) => (turnstileToken = t)} />
-					</div>
-				{/if}
-
 				<!-- Honeypot: hidden from sighted users + assistive tech. Bots that
 				     fill every input will set this; the backend silently drops them. -->
 				<div aria-hidden="true" class="absolute -left-[10000px] top-auto h-px w-px overflow-hidden">
@@ -261,11 +309,7 @@
 						<Shield class="size-3.5" />
 						{i18n.m.register.botProtectionNote}
 					</span>
-					<button
-						type="submit"
-						disabled={submitting || (PUBLIC_TURNSTILE_SITE_KEY !== '' && turnstileToken === '')}
-						class="btn preset-filled-primary-500"
-					>
+					<button type="submit" disabled={submitting} class="btn preset-filled-primary-500">
 						{submitting ? i18n.m.register.submitting : i18n.m.register.submit}
 					</button>
 				</div>

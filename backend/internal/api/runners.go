@@ -88,6 +88,10 @@ func birthDateFromYear(year *int) string {
 
 func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 	adminMW := adminMiddlewares(authCfg)
+	// MaybeAdmin lets the GET handlers behave differently for an authenticated
+	// admin (un-redacted) vs the public (A0.8 redaction). The admin dashboard
+	// hydrates from these same URLs and needs real names + ids to manage data.
+	maybeAdminMW := huma.Middlewares{auth.MaybeAdmin(authCfg)}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-runners",
@@ -95,6 +99,7 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		Path:        "/runners",
 		Summary:     "List all runners",
 		Tags:        []string{"runners"},
+		Middlewares: maybeAdminMW,
 	}, func(ctx context.Context, _ *struct{}) (*listRunnersOutput, error) {
 		rs, err := s.ListRunners(ctx)
 		if err != nil {
@@ -102,11 +107,14 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		}
 		// Non-race context — fall back to today for the minor-age check.
 		now := time.Now().UTC()
+		isAdmin := auth.ClaimsFromContext(ctx) != nil
 		out := &listRunnersOutput{}
 		out.Body.Runners = make([]RunnerDTO, len(rs))
 		for i, r := range rs {
 			dto := runnerToDTO(r)
-			redactRunnerForPublic(&dto, r, now)
+			if !isAdmin {
+				redactRunnerForPublic(&dto, r, now)
+			}
 			out.Body.Runners[i] = dto
 		}
 		return out, nil
@@ -118,6 +126,7 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		Path:        "/runners/{id}",
 		Summary:     "Get a runner by ID",
 		Tags:        []string{"runners"},
+		Middlewares: maybeAdminMW,
 	}, func(ctx context.Context, in *runnerIDInput) (*runnerOutput, error) {
 		r, err := s.GetRunner(ctx, in.ID)
 		if err != nil {
@@ -127,7 +136,9 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 			return nil, fmt.Errorf("get runner: %w", err)
 		}
 		dto := runnerToDTO(*r)
-		redactRunnerForPublic(&dto, *r, time.Now().UTC())
+		if auth.ClaimsFromContext(ctx) == nil {
+			redactRunnerForPublic(&dto, *r, time.Now().UTC())
+		}
 		return &runnerOutput{Body: dto}, nil
 	})
 

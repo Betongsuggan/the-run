@@ -5,12 +5,18 @@ import "time"
 // Status values for a Registration. The public POST /registrations endpoint
 // writes StatusReceived; the admin pipeline progresses entries through
 // pending/finished/dnf/dns. Reads normalize "received" → "pending".
+//
+// StatusPendingGuardianConsent (GDPR A0.4) is set when a runner under 13 at
+// the race date registers via a guardian: the registration is held until the
+// guardian clicks the magic link emailed to them. Excluded from public
+// leaderboards while in this state.
 const (
-	StatusReceived = "received"
-	StatusPending  = "pending"
-	StatusFinished = "finished"
-	StatusDNF      = "dnf"
-	StatusDNS      = "dns"
+	StatusReceived               = "received"
+	StatusPending                = "pending"
+	StatusPendingGuardianConsent = "pending_guardian_consent"
+	StatusFinished               = "finished"
+	StatusDNF                    = "dnf"
+	StatusDNS                    = "dns"
 )
 
 type Category struct {

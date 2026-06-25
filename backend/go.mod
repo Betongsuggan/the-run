@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.48
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.42.3
+	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.4
 	github.com/aws/smithy-go v1.27.1
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/danielgtaylor/huma/v2 v2.27.0

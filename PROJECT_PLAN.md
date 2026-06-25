@@ -68,9 +68,11 @@ keep frontend and backend in lockstep.
   whose event date is today or later. CTAs from the home hero, the top nav,
   and the event detail page (upcoming events only) link in. Includes a
   honeypot field as a first-pass bot filter — see open question below.
-- [ ] Real bot protection on `/register` (Cloudflare Turnstile or hCaptcha).
-  Honeypot alone won't survive a determined bot; pick a provider and wire
-  the token through to the backend before public launch.
+- [x] Bot protection on `/register`: in-form honeypot plus per-route API
+  Gateway throttling on `POST /registrations` (burst=5, sustained=2/s). No
+  third-party CAPTCHA — stack is AWS-only by policy. If the honeypot +
+  throttle ever prove insufficient, the AWS-native escalation is WAF + WAF
+  CAPTCHA.
 - [ ] Age-group + gender filters on the results table.
 - [ ] Per-runner share/print view of a single race result.
 - [ ] Empty-state and error-state designs (currently minimal).
@@ -123,8 +125,8 @@ keep frontend and backend in lockstep.
 - [ ] Validate that `raceId` exists and its event date is today or later
   (currently the frontend enforces this; backend will once Race/Event
   tables exist under B1).
-- [ ] Verify the captcha token (Turnstile/hCaptcha — see F2) server-side
-  before accepting the registration.
+- [x] Honeypot + API Gateway throttling on `POST /registrations` (no
+  CAPTCHA — see F2).
 
 ### Phase B3 — Operational concerns (added when motivated)
 

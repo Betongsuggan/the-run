@@ -23,7 +23,7 @@ export type RegisterForRaceInput = {
 	raceId: string;
 	publicResults: boolean;
 	marketing: boolean;
-	turnstileToken?: string;
+	guardianConsent?: boolean;
 	website?: string;
 };
 
@@ -31,6 +31,33 @@ export type RegisterForRaceResult = {
 	id: string;
 	status: string;
 };
+
+export type VerifyGuardianConsentResult = {
+	registrationId: string;
+	status: string;
+};
+
+export async function verifyGuardianConsent(
+	token: string,
+	fetchImpl: typeof fetch = fetch
+): Promise<VerifyGuardianConsentResult> {
+	const res = await fetchImpl(`${PUBLIC_API_BASE_URL}/guardian-consent/verify`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ token })
+	});
+	if (!res.ok) {
+		let detail = '';
+		try {
+			const body = await res.json();
+			if (body && typeof body.detail === 'string') detail = `: ${body.detail}`;
+		} catch {
+			/* ignore */
+		}
+		throw new Error(`POST /guardian-consent/verify failed: HTTP ${res.status}${detail}`);
+	}
+	return (await res.json()) as VerifyGuardianConsentResult;
+}
 
 export async function registerForRace(
 	input: RegisterForRaceInput,

@@ -26,13 +26,14 @@ const (
 )
 
 type DynamoStore struct {
-	client             *dynamodb.Client
-	runnersTable       string
-	registrationsTable string
-	eventsTable        string
-	racesTable         string
-	accountsTable      string
-	authAttemptsTable  string
+	client              *dynamodb.Client
+	runnersTable        string
+	registrationsTable  string
+	eventsTable         string
+	racesTable          string
+	accountsTable       string
+	authAttemptsTable   string
+	guardianTokensTable string
 }
 
 // NewDynamoStoreFromEnv reads RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME,
@@ -46,8 +47,9 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	racesTable := os.Getenv("RACES_TABLE_NAME")
 	accountsTable := os.Getenv("ACCOUNTS_TABLE_NAME")
 	authAttemptsTable := os.Getenv("AUTH_ATTEMPTS_TABLE_NAME")
-	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" {
-		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME must all be set")
+	guardianTokensTable := os.Getenv("GUARDIAN_TOKENS_TABLE_NAME")
+	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || guardianTokensTable == "" {
+		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, GUARDIAN_TOKENS_TABLE_NAME must all be set")
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
@@ -63,13 +65,14 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	}
 
 	return &DynamoStore{
-		client:             dynamodb.NewFromConfig(cfg, optFns...),
-		runnersTable:       runnersTable,
-		registrationsTable: registrationsTable,
-		eventsTable:        eventsTable,
-		racesTable:         racesTable,
-		accountsTable:      accountsTable,
-		authAttemptsTable:  authAttemptsTable,
+		client:              dynamodb.NewFromConfig(cfg, optFns...),
+		runnersTable:        runnersTable,
+		registrationsTable:  registrationsTable,
+		eventsTable:         eventsTable,
+		racesTable:          racesTable,
+		accountsTable:       accountsTable,
+		authAttemptsTable:   authAttemptsTable,
+		guardianTokensTable: guardianTokensTable,
 	}, nil
 }
 

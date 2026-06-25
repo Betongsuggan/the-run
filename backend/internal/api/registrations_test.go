@@ -12,9 +12,9 @@ import (
 	"github.com/danielgtaylor/huma/v2/humatest"
 
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
+	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
-	"github.com/BirgerRydback/the-run/backend/internal/turnstile"
 )
 
 // fakeStore is a tiny in-memory implementation covering only the methods the
@@ -26,10 +26,45 @@ type fakeStore struct {
 	accountsByEmail map[string]*models.Account
 	runners         []models.Runner
 	registrations   []models.Registration
+	races           map[string]models.Race
+	events          map[string]models.Event
+	guardianTokens  map[string]models.GuardianToken
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{accountsByEmail: map[string]*models.Account{}}
+	f := &fakeStore{
+		accountsByEmail: map[string]*models.Account{},
+		races:           map[string]models.Race{},
+		events:          map[string]models.Event{},
+		guardianTokens:  map[string]models.GuardianToken{},
+	}
+	// Default seed so the existing adult tests don't have to set this up: a
+	// "race-1" pointing at an event dated 2026-07-01.
+	f.events["evt-1"] = models.Event{ID: "evt-1", Date: "2026-07-01"}
+	f.races["race-1"] = models.Race{ID: "race-1", EventID: "evt-1"}
+	return f
+}
+
+func (f *fakeStore) GetRace(_ context.Context, id string) (*models.Race, error) {
+	if r, ok := f.races[id]; ok {
+		return &r, nil
+	}
+	return nil, store.ErrNotFound
+}
+
+func (f *fakeStore) GetEvent(_ context.Context, id string) (*models.Event, error) {
+	if e, ok := f.events[id]; ok {
+		return &e, nil
+	}
+	return nil, store.ErrNotFound
+}
+
+func (f *fakeStore) CreateGuardianToken(_ context.Context, t models.GuardianToken) error {
+	if _, exists := f.guardianTokens[t.ID]; exists {
+		return store.ErrAlreadyExists
+	}
+	f.guardianTokens[t.ID] = t
+	return nil
 }
 
 func (f *fakeStore) GetAccountByEmail(_ context.Context, email string) (*models.Account, error) {
@@ -79,20 +114,25 @@ func (f *fakeStore) CreateRegistration(_ context.Context, r models.Registration)
 func buildTestAPI(t *testing.T, s store.Store) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t, huma.DefaultConfig("test", "0.0.0"))
-	// Skip Turnstile in tests; covered separately by the turnstile package's own tests.
-	registerRegistrations(api, s, auth.Config{PrivacyVersion: "2026-08-01"}, turnstile.Config{SkipVerification: true})
+	// NoOp email sender so under-13 paths don't try to hit AWS.
+	registerRegistrations(api, s, auth.Config{PrivacyVersion: "2026-08-01"}, email.NoOpSender{})
 	return api
 }
 
 func registerBody(email, name, dob string, publicResults, marketing bool) map[string]any {
+	return registerBodyWithConsent(email, name, dob, publicResults, marketing, false)
+}
+
+func registerBodyWithConsent(email, name, dob string, publicResults, marketing, guardianConsent bool) map[string]any {
 	return map[string]any{
-		"name":          name,
-		"email":         email,
-		"dateOfBirth":   dob,
-		"gender":        "M",
-		"raceId":        "race-1",
-		"publicResults": publicResults,
-		"marketing":     marketing,
+		"name":            name,
+		"email":           email,
+		"dateOfBirth":     dob,
+		"gender":          "M",
+		"guardianConsent": guardianConsent,
+		"raceId":          "race-1",
+		"publicResults":   publicResults,
+		"marketing":       marketing,
 	}
 }
 
@@ -155,7 +195,8 @@ func TestRegister_NewAccount_StampsBothConsents(t *testing.T) {
 
 // Existing account, new runner under it: marketing must NOT be overwritten by
 // the new form value (the first decision stands), but the new runner gets its
-// own publicResults consent.
+// own publicResults consent. This is now also the under-13 guardian-consent
+// flow because the kid is born 2015 and the default seeded race is in 2026.
 func TestRegister_ExistingAccount_LeavesMarketingUntouched(t *testing.T) {
 	s := newFakeStore()
 	api := buildTestAPI(t, s)
@@ -171,8 +212,9 @@ func TestRegister_ExistingAccount_LeavesMarketingUntouched(t *testing.T) {
 		},
 	}
 
-	// Parent registers a kid with marketing=TRUE in the form — must be ignored.
-	resp := api.Post("/registrations", registerBody("parent@example.com", "Kid Andersson", "2015-04-01", false, true))
+	// Parent registers a kid with marketing=TRUE in the form — must be
+	// ignored. Under-13 path: needs guardianConsent=true.
+	resp := api.Post("/registrations", registerBodyWithConsent("parent@example.com", "Kid Andersson", "2015-04-01", false, true, true))
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", resp.Code, resp.Body.String())
 	}
@@ -197,6 +239,59 @@ func TestRegister_ExistingAccount_LeavesMarketingUntouched(t *testing.T) {
 	}
 	if r.Consents.PublicResults.PolicyVersion != "2026-08-01" {
 		t.Errorf("publicResults policyVersion = %q, want %q", r.Consents.PublicResults.PolicyVersion, "2026-08-01")
+	}
+
+	// Under-13: registration should be held pending until the guardian clicks.
+	if len(s.registrations) != 1 {
+		t.Fatalf("want 1 registration, got %d", len(s.registrations))
+	}
+	if s.registrations[0].Status != models.StatusPendingGuardianConsent {
+		t.Errorf("status = %q, want %q", s.registrations[0].Status, models.StatusPendingGuardianConsent)
+	}
+	if len(s.guardianTokens) != 1 {
+		t.Errorf("want 1 guardian token, got %d", len(s.guardianTokens))
+	}
+}
+
+// Under-13 happy path: registration is created with status
+// pending_guardian_consent and a guardian token is minted.
+func TestRegister_Under13_RequiresGuardianConsent(t *testing.T) {
+	s := newFakeStore()
+	api := buildTestAPI(t, s)
+
+	// Missing guardianConsent → 422 with explanatory message.
+	resp := api.Post("/registrations", registerBody("parent@example.com", "Kid", "2018-01-01", true, false))
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("missing consent: status = %d, body = %s", resp.Code, resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "guardian consent is required") {
+		t.Errorf("error body should explain the consent requirement: %s", resp.Body.String())
+	}
+	if len(s.registrations) != 0 {
+		t.Errorf("no registration should be written when consent missing, got %d", len(s.registrations))
+	}
+
+	// Same payload with the box ticked → created, pending, token issued.
+	resp = api.Post("/registrations", registerBodyWithConsent("parent@example.com", "Kid", "2018-01-01", true, false, true))
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", resp.Code, resp.Body.String())
+	}
+	if len(s.registrations) != 1 {
+		t.Fatalf("want 1 registration, got %d", len(s.registrations))
+	}
+	if s.registrations[0].Status != models.StatusPendingGuardianConsent {
+		t.Errorf("status = %q, want %q", s.registrations[0].Status, models.StatusPendingGuardianConsent)
+	}
+	if len(s.guardianTokens) != 1 {
+		t.Fatalf("want 1 guardian token, got %d", len(s.guardianTokens))
+	}
+	for _, tok := range s.guardianTokens {
+		if tok.RegistrationID != s.registrations[0].ID {
+			t.Errorf("token registrationId = %q, want %q", tok.RegistrationID, s.registrations[0].ID)
+		}
+		if tok.ExpiresAt.Before(time.Now().Add(6*24*time.Hour)) || tok.ExpiresAt.After(time.Now().Add(8*24*time.Hour)) {
+			t.Errorf("token expiry not ~7 days out: %v", tok.ExpiresAt)
+		}
 	}
 }
 

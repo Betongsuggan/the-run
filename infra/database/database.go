@@ -29,21 +29,23 @@ func pitrEnabled() *dynamodb.TablePointInTimeRecoveryArgs {
 }
 
 const (
-	RunnersTableName       = "the-run-runners"
-	RegistrationsTableName = "the-run-registrations"
-	EventsTableName        = "the-run-events"
-	RacesTableName         = "the-run-races"
-	AccountsTableName      = "the-run-accounts"
-	AuthAttemptsTableName  = "the-run-auth-attempts"
+	RunnersTableName        = "the-run-runners"
+	RegistrationsTableName  = "the-run-registrations"
+	EventsTableName         = "the-run-events"
+	RacesTableName          = "the-run-races"
+	AccountsTableName       = "the-run-accounts"
+	AuthAttemptsTableName   = "the-run-auth-attempts"
+	GuardianTokensTableName = "the-run-guardian-tokens"
 )
 
 type Tables struct {
-	Runners       *dynamodb.Table
-	Registrations *dynamodb.Table
-	Events        *dynamodb.Table
-	Races         *dynamodb.Table
-	Accounts      *dynamodb.Table
-	AuthAttempts  *dynamodb.Table
+	Runners        *dynamodb.Table
+	Registrations  *dynamodb.Table
+	Events         *dynamodb.Table
+	Races          *dynamodb.Table
+	Accounts       *dynamodb.Table
+	AuthAttempts   *dynamodb.Table
+	GuardianTokens *dynamodb.Table
 }
 
 func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
@@ -183,12 +185,34 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		return nil, err
 	}
 
+	// Guardian tokens (GDPR A0.4): PK=id (opaque random string). TTL on
+	// `expiresAt` (epoch seconds) auto-purges abandoned tokens — abandoned
+	// = "guardian never clicked the magic link within 7 days". No PITR;
+	// expiring tokens are not data worth recovering.
+	guardianTokens, err := dynamodb.NewTable(ctx, "guardian-tokens-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(GuardianTokensTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("id"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("id"), Type: pulumi.String("S")},
+		},
+		Ttl: &dynamodb.TableTtlArgs{
+			AttributeName: pulumi.String("expiresAt"),
+			Enabled:       pulumi.Bool(true),
+		},
+		ServerSideEncryption: sseEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Tables{
-		Runners:       runners,
-		Registrations: registrations,
-		Events:        events,
-		Races:         races,
-		Accounts:      accounts,
-		AuthAttempts:  authAttempts,
+		Runners:        runners,
+		Registrations:  registrations,
+		Events:         events,
+		Races:          races,
+		Accounts:       accounts,
+		AuthAttempts:   authAttempts,
+		GuardianTokens: guardianTokens,
 	}, nil
 }

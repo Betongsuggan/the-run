@@ -15,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/BirgerRydback/the-run/infra/database"
+	"github.com/BirgerRydback/the-run/infra/email"
 )
 
 // Resources is the set of backend resources main.go exports outputs for.
@@ -34,6 +35,7 @@ func Setup(
 	apiFQDN, siteFQDN, cookieDomain string,
 	zoneID pulumi.StringInput,
 	tables *database.Tables,
+	em *email.Resources,
 ) (*Resources, error) {
 	cert, certValidation, err := createCert(ctx, apiFQDN, zoneID)
 	if err != nil {
@@ -70,30 +72,6 @@ func Setup(
 		return nil, err
 	}
 
-	// Cloudflare Turnstile secret key. Stored encrypted; rotation = set a new
-	// SecretVersion out-of-band (e.g. `aws secretsmanager put-secret-value`).
-	// Initial value is a placeholder so `pulumi up` works before a Cloudflare
-	// account exists — the Lambda's LoadConfig logs a warning and skips
-	// verification until a real key lands. Update via:
-	//   aws secretsmanager put-secret-value \
-	//     --secret-id the-run/turnstile-secret-key \
-	//     --secret-string '<key-from-cloudflare>'
-	turnstileSecret, err := secretsmanager.NewSecret(ctx, "turnstile-secret", &secretsmanager.SecretArgs{
-		Name:        pulumi.String("the-run/turnstile-secret-key"),
-		Description: pulumi.String("Cloudflare Turnstile secret key for /registrations bot challenge"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = secretsmanager.NewSecretVersion(ctx, "turnstile-secret-version", &secretsmanager.SecretVersionArgs{
-		SecretId:     turnstileSecret.ID(),
-		SecretString: pulumi.String("placeholder-set-via-put-secret-value"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	assumePolicy, err := json.Marshal(map[string]any{
 		"Version": "2012-10-17",
 		"Statement": []any{
@@ -125,7 +103,7 @@ func Setup(
 
 	dynamoPolicy := pulumi.All(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
-		tables.Accounts.Arn, tables.AuthAttempts.Arn,
+		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.GuardianTokens.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
@@ -133,6 +111,7 @@ func Setup(
 		racesArn := args[3].(string)
 		accountsArn := args[4].(string)
 		attemptsArn := args[5].(string)
+		guardianArn := args[6].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -162,6 +141,7 @@ func Setup(
 						accountsArn + "/index/*",
 						attemptsArn,
 						attemptsArn + "/index/*",
+						guardianArn,
 					},
 				},
 			},
@@ -180,16 +160,14 @@ func Setup(
 		return nil, err
 	}
 
-	secretsPolicy := pulumi.All(jwtSecret.Arn, turnstileSecret.Arn).ApplyT(func(args []any) (string, error) {
-		jwtArn := args[0].(string)
-		turnstileArn := args[1].(string)
+	secretsPolicy := jwtSecret.Arn.ApplyT(func(arn string) (string, error) {
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
 				map[string]any{
 					"Effect":   "Allow",
 					"Action":   []string{"secretsmanager:GetSecretValue"},
-					"Resource": []string{jwtArn, turnstileArn},
+					"Resource": arn,
 				},
 			},
 		})
@@ -202,6 +180,41 @@ func Setup(
 	_, err = iam.NewRolePolicy(ctx, "lambda-secrets", &iam.RolePolicyArgs{
 		Role:   lambdaRole.ID(),
 		Policy: secretsPolicy,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// SES send permission. The identity wildcard is required because while
+	// SES is in sandbox mode AWS performs an IAM check against the recipient
+	// identity (each test recipient verified via `just verify-email-recipient`
+	// is its own ARN) in addition to the sender identity. We can't enumerate
+	// future test recipients in the policy. Once the account is out of
+	// sandbox the recipient check disappears and we can tighten Resource
+	// back to em.Identity.Arn + em.ConfigurationSetArn.
+	sesPolicy := em.ConfigurationSetArn.ApplyT(func(configSetArn string) (string, error) {
+		doc, err := json.Marshal(map[string]any{
+			"Version": "2012-10-17",
+			"Statement": []any{
+				map[string]any{
+					"Effect": "Allow",
+					"Action": []string{"ses:SendEmail", "ses:SendRawEmail"},
+					"Resource": []string{
+						"arn:aws:ses:eu-north-1:*:identity/*",
+						configSetArn,
+					},
+				},
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		return string(doc), nil
+	}).(pulumi.StringOutput)
+
+	_, err = iam.NewRolePolicy(ctx, "lambda-ses", &iam.RolePolicyArgs{
+		Role:   lambdaRole.ID(),
+		Policy: sesPolicy,
 	})
 	if err != nil {
 		return nil, err
@@ -233,16 +246,19 @@ func Setup(
 		Timeout:       pulumi.Int(10),
 		Environment: &awslambda.FunctionEnvironmentArgs{
 			Variables: pulumi.StringMap{
-				"RUNNERS_TABLE_NAME":       tables.Runners.Name,
-				"REGISTRATIONS_TABLE_NAME": tables.Registrations.Name,
-				"EVENTS_TABLE_NAME":        tables.Events.Name,
-				"RACES_TABLE_NAME":         tables.Races.Name,
-				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
-				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
-				"JWT_SECRET_ARN":           jwtSecret.Arn,
-				"TURNSTILE_SECRET_ARN":     turnstileSecret.Arn,
-				"COOKIE_DOMAIN":            pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
-				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
+				"RUNNERS_TABLE_NAME":         tables.Runners.Name,
+				"REGISTRATIONS_TABLE_NAME":   tables.Registrations.Name,
+				"EVENTS_TABLE_NAME":          tables.Events.Name,
+				"RACES_TABLE_NAME":           tables.Races.Name,
+				"ACCOUNTS_TABLE_NAME":        tables.Accounts.Name,
+				"AUTH_ATTEMPTS_TABLE_NAME":   tables.AuthAttempts.Name,
+				"GUARDIAN_TOKENS_TABLE_NAME": tables.GuardianTokens.Name,
+				"JWT_SECRET_ARN":             jwtSecret.Arn,
+				"SES_SENDER_ADDRESS":         pulumi.String(em.SenderAddress),
+				"SES_CONFIGURATION_SET":      em.ConfigurationSet.ConfigurationSetName,
+				"COOKIE_DOMAIN":              pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
+				"PRIVACY_POLICY_VERSION":     pulumi.String("2026-08-01"),
+				"SITE_BASE_URL":              pulumi.String("https://" + siteFQDN),
 			},
 		},
 	}, pulumi.DependsOn([]pulumi.Resource{logGroup}))
@@ -317,13 +333,14 @@ func Setup(
 		ApiId:      api.ID(),
 		Name:       pulumi.String("$default"),
 		AutoDeploy: pulumi.Bool(true),
-		// Per-route throttling on POST /registrations (GDPR A0.7) — bounds
-		// damage from a token-replay or token-farmed flood that gets past
-		// Turnstile. Numbers are deliberately conservative: a 500-runner
-		// race rarely exceeds ~0.05 req/s in steady state, so 2 sustained
-		// + 5 burst leaves >40× headroom for the legitimate sign-up peak
-		// while still rejecting a hostile flood. HTTP API throttling is
-		// global across all clients (per-IP needs WAF — see A2).
+		// Per-route throttling on POST /registrations (GDPR A0.7) — primary
+		// bot defence paired with the in-form honeypot. Numbers are
+		// deliberately conservative: a 500-runner race rarely exceeds
+		// ~0.05 req/s in steady state, so 2 sustained + 5 burst leaves >40×
+		// headroom for the legitimate sign-up peak while still rejecting a
+		// hostile flood. HTTP API throttling is global across all clients
+		// (per-IP needs WAF — see A2 in the GDPR plan if this proves
+		// insufficient).
 		RouteSettings: apigatewayv2.StageRouteSettingArray{
 			&apigatewayv2.StageRouteSettingArgs{
 				RouteKey:             pulumi.String("POST /registrations"),
