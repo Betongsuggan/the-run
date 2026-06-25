@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -144,7 +145,7 @@ func TestExpandResult_RedactsResultRunnerID(t *testing.T) {
 	}
 	res := ResultDTO{ID: "reg-1", RaceID: "race-1", RunnerID: "r-1", Bib: "42", FinishSeconds: 1800}
 
-	out, err := expandResult(res, rc)
+	out, err := expandResult(context.Background(), res, rc)
 	if err != nil {
 		t.Fatalf("expandResult: %v", err)
 	}
@@ -174,7 +175,7 @@ func TestExpandResult_MinorAgeFrozenAtRaceDate(t *testing.T) {
 	}
 	res := ResultDTO{ID: "reg-2", RaceID: "race-2", RunnerID: "kid-1", FinishSeconds: 600}
 
-	out, err := expandResult(res, rc)
+	out, err := expandResult(context.Background(), res, rc)
 	if err != nil {
 		t.Fatalf("expandResult: %v", err)
 	}

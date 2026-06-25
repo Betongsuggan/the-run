@@ -101,6 +101,21 @@ func DSRSubject(ctx context.Context) string {
 	return c.Subject
 }
 
+// MaybeDSRSession is RequireDSRSession's softer sibling. Mirrors MaybeAdmin:
+// parses the DSR cookie if present and attaches claims, never rejects. Used
+// on public read endpoints (runners list, results) so a DSR-logged-in parent
+// can be projected differently from anonymous visitors — they see their own
+// family's runners un-redacted while strangers still see redacted rows.
+func MaybeDSRSession(cfg Config) func(huma.Context, func(huma.Context)) {
+	return func(hctx huma.Context, next func(huma.Context)) {
+		token := readCookieFromHumaCtx(hctx, DSRSessionCookieName)
+		if claims, err := ParseDSRSession(cfg, token); err == nil {
+			hctx = huma.WithContext(hctx, WithDSRClaims(hctx.Context(), claims))
+		}
+		next(hctx)
+	}
+}
+
 // RequireDSRSession gates /my-data endpoints. Mirrors RequireAdmin shape:
 // reads the DSR cookie, parses+validates, attaches claims, rejects with 401
 // on any failure. Distinct cookie name + claim kind from the admin path so

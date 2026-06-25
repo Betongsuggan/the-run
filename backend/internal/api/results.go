@@ -9,6 +9,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
@@ -110,24 +111,31 @@ type raceContext struct {
 	runner func(id string) (*models.Runner, error)
 }
 
-func expandResult(res ResultDTO, ctx raceContext) (*ResultExpandedDTO, error) {
-	runner, err := ctx.runner(res.RunnerID)
+func expandResult(reqCtx context.Context, res ResultDTO, rctx raceContext) (*ResultExpandedDTO, error) {
+	runner, err := rctx.runner(res.RunnerID)
 	if err != nil {
 		return nil, err
 	}
 	runnerDTO := runnerToDTO(*runner)
-	// Minor-age check uses the race's event date so a runner who was 12 then
-	// stays redacted in that race's leaderboard even after they turn 13.
-	raceDate, _ := time.Parse("2006-01-02", ctx.event.Date)
-	if redacted := redactRunnerForPublic(&runnerDTO, *runner, raceDate); redacted {
-		// The runner's profile link is hidden; clear the sibling RunnerID
-		// field on the result row too, so the frontend can't reconstruct it.
-		res.RunnerID = ""
+	// Admins and the runner's own account-holder see real names. Strangers
+	// see the A0.8 redaction. Minor-age check uses the race's event date so
+	// a runner who was 12 then stays redacted in that race's leaderboard
+	// even after they turn 13 (and only the original consent applies).
+	isAdmin := auth.ClaimsFromContext(reqCtx) != nil
+	ownsRunner := runner.AccountID != "" && runner.AccountID == auth.DSRSubject(reqCtx)
+	if !isAdmin && !ownsRunner {
+		raceDate, _ := time.Parse("2006-01-02", rctx.event.Date)
+		if redacted := redactRunnerForPublic(&runnerDTO, *runner, raceDate); redacted {
+			// The runner's profile link is hidden; clear the sibling
+			// RunnerID field on the result row too so the frontend can't
+			// reconstruct it.
+			res.RunnerID = ""
+		}
 	}
 	return &ResultExpandedDTO{
 		ResultDTO: res,
-		Race:      raceToDTO(ctx.race),
-		Event:     eventToDTO(ctx.event),
+		Race:      raceToDTO(rctx.race),
+		Event:     eventToDTO(rctx.event),
 		Runner:    runnerDTO,
 	}, nil
 }
@@ -161,13 +169,19 @@ func loadRaceContext(ctx context.Context, s store.Store, raceID string) (*raceCo
 	}, nil
 }
 
-func registerResults(api huma.API, s store.Store) {
+func registerResults(api huma.API, s store.Store, authCfg auth.Config) {
+	// MaybeAdmin + MaybeDSRSession attach session claims if present without
+	// rejecting unauthenticated traffic. expandResult inspects the claims to
+	// decide whether each row needs the A0.8 redaction.
+	maybeAuthMW := huma.Middlewares{auth.MaybeAdmin(authCfg), auth.MaybeDSRSession(authCfg)}
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-results-by-race",
 		Method:      "GET",
 		Path:        "/races/{raceId}/results",
 		Summary:     "List computed results for a race",
 		Tags:        []string{"results"},
+		Middlewares: maybeAuthMW,
 	}, func(ctx context.Context, in *listResultsByRaceInput) (*listResultsOutput, error) {
 		regs, err := s.ListRegistrationsByRace(ctx, in.RaceID)
 		if err != nil {
@@ -189,7 +203,7 @@ func registerResults(api huma.API, s store.Store) {
 		out := &listResultsOutput{}
 		out.Body.Results = make([]ResultExpandedDTO, 0, len(results))
 		for _, r := range results {
-			expanded, err := expandResult(r, *rc)
+			expanded, err := expandResult(ctx, r, *rc)
 			if err != nil {
 				if errors.Is(err, store.ErrNotFound) {
 					continue
@@ -207,6 +221,7 @@ func registerResults(api huma.API, s store.Store) {
 		Path:        "/runners/{runnerId}/results",
 		Summary:     "List a runner's results across all races",
 		Tags:        []string{"results"},
+		Middlewares: maybeAuthMW,
 	}, func(ctx context.Context, in *listResultsByRunnerInput) (*listResultsOutput, error) {
 		regs, err := s.ListRegistrationsByRunner(ctx, in.RunnerID)
 		if err != nil {
@@ -231,7 +246,7 @@ func registerResults(api huma.API, s store.Store) {
 				if r.RunnerID != in.RunnerID {
 					continue
 				}
-				e, err := expandResult(r, *rc)
+				e, err := expandResult(ctx, r, *rc)
 				if err != nil {
 					if errors.Is(err, store.ErrNotFound) {
 						continue
@@ -253,6 +268,7 @@ func registerResults(api huma.API, s store.Store) {
 		Path:        "/results/{id}",
 		Summary:     "Get a single expanded result by registration ID",
 		Tags:        []string{"results"},
+		Middlewares: maybeAuthMW,
 	}, func(ctx context.Context, in *resultIDInput) (*resultOutput, error) {
 		reg, err := s.GetRegistrationByID(ctx, in.ID)
 		if err != nil {
@@ -277,7 +293,7 @@ func registerResults(api huma.API, s store.Store) {
 		}
 		for _, r := range computeResultsForRace(raceRegs) {
 			if r.ID == in.ID {
-				e, err := expandResult(r, *rc)
+				e, err := expandResult(ctx, r, *rc)
 				if err != nil {
 					return nil, fmt.Errorf("expand result: %w", err)
 				}

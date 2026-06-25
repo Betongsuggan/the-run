@@ -51,6 +51,10 @@ type Store interface {
 	GetAccountByEmail(ctx context.Context, email string) (*models.Account, error)
 	CreateAccount(ctx context.Context, a models.Account) error
 	UpdateAccount(ctx context.Context, a models.Account) error
+	// ChangeAccountEmail rewrites the EMAIL# sentinel and updates the account
+	// row in one TransactWriteItems call. Returns ErrAlreadyExists if newEmail
+	// is taken by another account.
+	ChangeAccountEmail(ctx context.Context, accountID, oldEmail, newEmail string) error
 	TouchAccountLastLogin(ctx context.Context, id string, at time.Time) error
 
 	// Auth attempts — failed-login tracking with TTL, drives lockout.

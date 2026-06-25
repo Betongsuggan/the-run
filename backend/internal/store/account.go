@@ -215,6 +215,92 @@ func (s *DynamoStore) UpdateAccount(ctx context.Context, a models.Account) error
 	return nil
 }
 
+// ChangeAccountEmail atomically rewrites the email sentinel and updates the
+// account's email field. The three-op TransactWriteItems guarantees no
+// partial state — either the new sentinel takes hold and the account row is
+// updated, or nothing happens.
+//
+// Returns ErrAlreadyExists if the new email is already on another account
+// (the put-with-attribute_not_exists fails). Returns ErrNotFound if the
+// account row went away between the read and this call (unusual; account
+// row is deleted only by the retention job).
+func (s *DynamoStore) ChangeAccountEmail(ctx context.Context, accountID, oldEmail, newEmail string) error {
+	if accountID == "" || oldEmail == "" || newEmail == "" {
+		return errors.New("accountId, oldEmail, newEmail are required")
+	}
+	oldNorm := models.NormalizeEmail(oldEmail)
+	newNorm := models.NormalizeEmail(newEmail)
+	if oldNorm == newNorm {
+		return nil
+	}
+
+	// New sentinel row pointing at this account.
+	newSentinel, err := attributevalue.MarshalMap(emailSentinelItem{
+		ID:        emailSentinelID(newNorm),
+		AccountID: accountID,
+		Kind:      "email-sentinel",
+	})
+	if err != nil {
+		return fmt.Errorf("marshal new sentinel: %w", err)
+	}
+
+	_, err = s.client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
+		TransactItems: []dynamodbtypes.TransactWriteItem{
+			// (1) Delete the OLD sentinel — conditional on it still pointing
+			// to this account (defence against a concurrent change).
+			{
+				Delete: &dynamodbtypes.Delete{
+					TableName: aws.String(s.accountsTable),
+					Key: map[string]dynamodbtypes.AttributeValue{
+						"id": &dynamodbtypes.AttributeValueMemberS{Value: emailSentinelID(oldNorm)},
+					},
+					ConditionExpression: aws.String("accountId = :a"),
+					ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+						":a": &dynamodbtypes.AttributeValueMemberS{Value: accountID},
+					},
+				},
+			},
+			// (2) Put the NEW sentinel — must not already exist (would
+			// collide with another account or with this account's pre-
+			// existing claim).
+			{
+				Put: &dynamodbtypes.Put{
+					TableName:           aws.String(s.accountsTable),
+					Item:                newSentinel,
+					ConditionExpression: aws.String("attribute_not_exists(id)"),
+				},
+			},
+			// (3) Update the account row's email field. Conditional on the
+			// row still existing AND still showing the old email — guards
+			// against weird concurrent edits.
+			{
+				Update: &dynamodbtypes.Update{
+					TableName: aws.String(s.accountsTable),
+					Key: map[string]dynamodbtypes.AttributeValue{
+						"id": &dynamodbtypes.AttributeValueMemberS{Value: accountID},
+					},
+					UpdateExpression:    aws.String("SET email = :new"),
+					ConditionExpression: aws.String("attribute_exists(id) AND email = :old"),
+					ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+						":new": &dynamodbtypes.AttributeValueMemberS{Value: newNorm},
+						":old": &dynamodbtypes.AttributeValueMemberS{Value: oldNorm},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		if isTransactionCanceled(err) {
+			// Most likely cause: the new sentinel collided. Race with another
+			// account claiming the same address. Surface as ErrAlreadyExists
+			// so the handler maps to 409.
+			return ErrAlreadyExists
+		}
+		return fmt.Errorf("swap account email: %w", err)
+	}
+	return nil
+}
+
 func (s *DynamoStore) TouchAccountLastLogin(ctx context.Context, id string, at time.Time) error {
 	_, err := s.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(s.accountsTable),

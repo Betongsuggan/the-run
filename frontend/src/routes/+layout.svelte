@@ -90,9 +90,7 @@
 	</main>
 
 	<footer class="border-t border-surface-200-800 py-6">
-		<div
-			class="mx-auto max-w-6xl px-4 flex items-center justify-center gap-3 text-xs opacity-70"
-		>
+		<div class="mx-auto max-w-6xl px-4 flex items-center justify-center gap-3 text-xs opacity-70">
 			<PineSprig class="size-6 text-success-700 dark:text-success-300" />
 			<!-- Reserved for policy + admin links once those pages exist (B0.1 privacy
 			     policy, /admin entry, etc.). Keep the visual frame in place so the

@@ -207,12 +207,41 @@ const sv = {
 		runnersYears: 'år',
 		runnersPublicResults: 'Publika resultat',
 		runnersRegistrations: (n: number) => (n === 1 ? '1 anmälan' : `${n} anmälningar`),
+		runnersUnder13Note: (name: string) =>
+			`Eftersom ${name} är under 13 år visas hen aldrig publikt — inställningen ovan får effekt först när hen fyller 13.`,
 		exportHeading: 'Exportera dina uppgifter',
 		exportBody:
 			'Ladda ner allt vi har om dig som en JSON-fil — konto, löpare, anmälningar och samtycken.',
 		exportSubmit: 'Ladda ner JSON',
 		exportSubmitting: 'Förbereder …',
-		moreSoon: 'Fler funktioner (redigera, byt e-post, ta bort konto) kommer snart.'
+		changeEmail: 'Byt e-post',
+		changeEmailHeading: 'Byt e-postadress',
+		changeEmailBody:
+			'Ange din nya e-postadress. Vi skickar en bekräftelselänk dit — adressen byts först när du klickat på länken.',
+		changeEmailLabel: 'Ny e-postadress',
+		changeEmailSubmit: 'Skicka bekräftelselänk',
+		changeEmailSent:
+			'Vi har skickat en bekräftelselänk till den nya adressen. Klicka på länken inom 24 timmar för att slutföra bytet.',
+		editRunner: 'Redigera löpare',
+		editRunnerHeading: 'Redigera löpare',
+		editRunnerName: 'Namn',
+		editRunnerGender: 'Kön',
+		editRunnerDob: 'Födelsedatum',
+		editRunnerDobLocked:
+			'Födelsedatum kan inte ändras efter att löparen har deltagit i ett lopp (åldersklassen är fastlåst).',
+		confirmEmailVerifying: 'Bekräftar adressbyte …',
+		confirmEmailSuccessHeading: 'E-postadressen är ändrad',
+		confirmEmailSuccessBody:
+			'Din nya e-postadress används nu för inloggning, bekräftelser och anmälningar:',
+		confirmEmailErrorHeading: 'Länken kunde inte verifieras',
+		confirmEmailErrorBody:
+			'Länken är ogiltig, har redan använts, eller har förfallit. Begär ett nytt byte från Mina uppgifter.',
+		confirmEmailMissingToken: 'Ingen kod fanns i URL:en.',
+		confirmEmailBack: 'Till Mina uppgifter',
+		save: 'Spara',
+		cancel: 'Avbryt',
+		close: 'Stäng',
+		moreSoon: 'Funktion för att ta bort konto kommer snart.'
 	},
 	admin: {
 		title: 'Admin',
@@ -561,12 +590,41 @@ const en: Catalog = {
 		runnersYears: 'yrs',
 		runnersPublicResults: 'Public results',
 		runnersRegistrations: (n: number) => (n === 1 ? '1 registration' : `${n} registrations`),
+		runnersUnder13Note: (name: string) =>
+			`While ${name} is under 13, they are never shown publicly — the setting above will only take effect when they turn 13.`,
 		exportHeading: 'Export your data',
 		exportBody:
 			'Download everything we have on you as a JSON file — account, runners, registrations, consents.',
 		exportSubmit: 'Download JSON',
 		exportSubmitting: 'Preparing …',
-		moreSoon: 'More features (edit fields, change email, delete account) coming soon.'
+		changeEmail: 'Change email',
+		changeEmailHeading: 'Change email address',
+		changeEmailBody:
+			"Enter your new email address. We'll send a confirmation link there — the change takes effect when you click it.",
+		changeEmailLabel: 'New email address',
+		changeEmailSubmit: 'Send confirmation link',
+		changeEmailSent:
+			"We've sent a confirmation link to the new address. Click it within 24 hours to complete the change.",
+		editRunner: 'Edit runner',
+		editRunnerHeading: 'Edit runner',
+		editRunnerName: 'Name',
+		editRunnerGender: 'Gender',
+		editRunnerDob: 'Date of birth',
+		editRunnerDobLocked:
+			'Date of birth cannot be changed once this runner has participated in a race (age category is locked).',
+		confirmEmailVerifying: 'Confirming address change …',
+		confirmEmailSuccessHeading: 'Email address changed',
+		confirmEmailSuccessBody:
+			'Your new email address is now used for sign-in, confirmations and registrations:',
+		confirmEmailErrorHeading: 'The link could not be verified',
+		confirmEmailErrorBody:
+			'The link is invalid, already used, or expired. Request a new change from My data.',
+		confirmEmailMissingToken: 'No token was supplied in the URL.',
+		confirmEmailBack: 'Back to My data',
+		save: 'Save',
+		cancel: 'Cancel',
+		close: 'Close',
+		moreSoon: 'Account deletion is coming soon.'
 	},
 	admin: {
 		title: 'Admin',

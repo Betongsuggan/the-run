@@ -88,10 +88,12 @@ func birthDateFromYear(year *int) string {
 
 func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 	adminMW := adminMiddlewares(authCfg)
-	// MaybeAdmin lets the GET handlers behave differently for an authenticated
-	// admin (un-redacted) vs the public (A0.8 redaction). The admin dashboard
-	// hydrates from these same URLs and needs real names + ids to manage data.
-	maybeAdminMW := huma.Middlewares{auth.MaybeAdmin(authCfg)}
+	// MaybeAdmin + MaybeDSRSession let the GET handlers project differently
+	// based on who's looking:
+	//   - anonymous viewer:        full A0.8 redaction
+	//   - DSR-logged-in user:      their own family un-redacted, rest redacted
+	//   - admin:                   no redaction at all (manages full data)
+	maybeAuthMW := huma.Middlewares{auth.MaybeAdmin(authCfg), auth.MaybeDSRSession(authCfg)}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-runners",
@@ -99,7 +101,7 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		Path:        "/runners",
 		Summary:     "List all runners",
 		Tags:        []string{"runners"},
-		Middlewares: maybeAdminMW,
+		Middlewares: maybeAuthMW,
 	}, func(ctx context.Context, _ *struct{}) (*listRunnersOutput, error) {
 		rs, err := s.ListRunners(ctx)
 		if err != nil {
@@ -108,14 +110,22 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		// Non-race context — fall back to today for the minor-age check.
 		now := time.Now().UTC()
 		isAdmin := auth.ClaimsFromContext(ctx) != nil
+		dsrAccountID := auth.DSRSubject(ctx)
 		out := &listRunnersOutput{}
-		out.Body.Runners = make([]RunnerDTO, len(rs))
-		for i, r := range rs {
+		out.Body.Runners = make([]RunnerDTO, 0, len(rs))
+		for _, r := range rs {
 			dto := runnerToDTO(r)
-			if !isAdmin {
-				redactRunnerForPublic(&dto, r, now)
+			// Admins and the runner's own account-holder see un-redacted.
+			// Everyone else: opt-out adults and minors are filtered out of
+			// the public directory entirely (leaderboards still show them
+			// anonymized — see results.go — but a "who is here" list has
+			// no context to preserve).
+			if !isAdmin && r.AccountID != dsrAccountID {
+				if redactRunnerForPublic(&dto, r, now) {
+					continue
+				}
 			}
-			out.Body.Runners[i] = dto
+			out.Body.Runners = append(out.Body.Runners, dto)
 		}
 		return out, nil
 	})
@@ -126,7 +136,7 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		Path:        "/runners/{id}",
 		Summary:     "Get a runner by ID",
 		Tags:        []string{"runners"},
-		Middlewares: maybeAdminMW,
+		Middlewares: maybeAuthMW,
 	}, func(ctx context.Context, in *runnerIDInput) (*runnerOutput, error) {
 		r, err := s.GetRunner(ctx, in.ID)
 		if err != nil {
@@ -136,8 +146,14 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 			return nil, fmt.Errorf("get runner: %w", err)
 		}
 		dto := runnerToDTO(*r)
-		if auth.ClaimsFromContext(ctx) == nil {
-			redactRunnerForPublic(&dto, *r, time.Now().UTC())
+		isAdmin := auth.ClaimsFromContext(ctx) != nil
+		ownsRunner := r.AccountID != "" && r.AccountID == auth.DSRSubject(ctx)
+		if !isAdmin && !ownsRunner {
+			// If redaction applies (opt-out adult or minor), pretend the
+			// runner doesn't exist rather than returning a stub profile.
+			if redactRunnerForPublic(&dto, *r, time.Now().UTC()) {
+				return nil, huma.Error404NotFound("runner not found")
+			}
 		}
 		return &runnerOutput{Body: dto}, nil
 	})

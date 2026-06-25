@@ -36,6 +36,11 @@ import (
 // is cheap to mint. Limits the window an intercepted link is usable.
 const dsrAccessTokenTTL = 30 * time.Minute
 
+// emailChangeTokenTTL is the window the user has to confirm a new email
+// address from their new inbox. 1 day balances "give them time" with
+// "limit replay window for an intercepted link".
+const emailChangeTokenTTL = 24 * time.Hour
+
 // ── Inputs / outputs ──────────────────────────────────────────────────────
 
 type dsrRequestLinkInput struct {
@@ -125,6 +130,52 @@ type dsrExportOutput struct {
 	ContentType        string `header:"Content-Type"`
 	ContentDisposition string `header:"Content-Disposition"`
 	Body               dsrMeBody
+}
+
+// ── PATCH inputs ──────────────────────────────────────────────────────────
+
+type dsrConsentUpdate struct {
+	PublicResults *bool `json:"publicResults,omitempty"`
+}
+
+type dsrPatchConsentsInput struct {
+	Body struct {
+		Marketing *bool                       `json:"marketing,omitempty" doc:"New account-level marketing consent (omit to leave unchanged)"`
+		PerRunner map[string]dsrConsentUpdate `json:"perRunner,omitempty" doc:"Per-runner consent updates, keyed by runner ID"`
+	}
+}
+
+type dsrPatchRunnerInput struct {
+	ID   string `path:"id" minLength:"1"`
+	Body struct {
+		Name        *string `json:"name,omitempty" minLength:"1" maxLength:"120"`
+		Gender      *string `json:"gender,omitempty" enum:"M,F,X"`
+		DateOfBirth *string `json:"dateOfBirth,omitempty" format:"date"`
+	}
+}
+
+type dsrPatchLocaleInput struct {
+	Body struct {
+		Locale string `json:"locale" enum:"sv,en" doc:"Preferred language"`
+	}
+}
+
+type dsrRequestEmailChangeInput struct {
+	Body struct {
+		NewEmail string `json:"newEmail" format:"email" maxLength:"254"`
+	}
+}
+
+type dsrConfirmEmailChangeInput struct {
+	Body struct {
+		Token string `json:"token" minLength:"16" maxLength:"128"`
+	}
+}
+
+type dsrConfirmEmailChangeOutput struct {
+	Body struct {
+		Email string `json:"email" doc:"New email now associated with the account"`
+	}
 }
 
 // ── Registration ──────────────────────────────────────────────────────────
@@ -281,6 +332,282 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 			ContentDisposition: `attachment; filename="` + filename + `"`,
 			Body:               *body,
 		}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "dsr-patch-consents",
+		Method:      "PATCH",
+		Path:        "/dsr/me/consents",
+		Summary:     "Update marketing + per-runner publicResults consents",
+		Tags:        []string{"dsr"},
+		Middlewares: dsrMW,
+	}, func(ctx context.Context, in *dsrPatchConsentsInput) (*dsrMeOutput, error) {
+		accountID := auth.DSRSubject(ctx)
+		now := time.Now().UTC()
+
+		// Marketing — fetch the account, mutate, save. Stamp afresh so the
+		// audit trail (consent.At + policyVersion) is always current.
+		if in.Body.Marketing != nil {
+			account, err := s.GetAccountByID(ctx, accountID)
+			if err != nil {
+				return nil, fmt.Errorf("get account: %w", err)
+			}
+			account.Consents.Marketing = models.Consent{
+				Granted:       *in.Body.Marketing,
+				At:            now,
+				PolicyVersion: authCfg.PrivacyVersion,
+			}
+			if err := s.UpdateAccount(ctx, *account); err != nil {
+				return nil, fmt.Errorf("update account: %w", err)
+			}
+		}
+
+		// Per-runner — verify ownership before each write. A naive client
+		// that tries to pass another account's runnerId gets 403, not a
+		// silent overwrite.
+		for runnerID, update := range in.Body.PerRunner {
+			if update.PublicResults == nil {
+				continue
+			}
+			runner, err := s.GetRunner(ctx, runnerID)
+			if err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					return nil, huma.Error404NotFound("runner not found")
+				}
+				return nil, fmt.Errorf("get runner: %w", err)
+			}
+			if runner.AccountID != accountID {
+				return nil, huma.Error403Forbidden("runner does not belong to this account")
+			}
+			runner.Consents.PublicResults = models.Consent{
+				Granted:       *update.PublicResults,
+				At:            now,
+				PolicyVersion: authCfg.PrivacyVersion,
+			}
+			if err := s.UpdateRunner(ctx, *runner); err != nil {
+				return nil, fmt.Errorf("update runner: %w", err)
+			}
+		}
+
+		body, err := buildDSRMeBody(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		return &dsrMeOutput{Body: *body}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "dsr-patch-runner",
+		Method:      "PATCH",
+		Path:        "/dsr/me/runners/{id}",
+		Summary:     "Update a runner's name / gender / date-of-birth",
+		Description: "Date-of-birth is locked once this runner has any registration in the finished state — historical results would otherwise re-bucket into a different age category. Returns 409 with detail='date of birth locked' in that case.",
+		Tags:        []string{"dsr"},
+		Middlewares: dsrMW,
+	}, func(ctx context.Context, in *dsrPatchRunnerInput) (*dsrMeOutput, error) {
+		accountID := auth.DSRSubject(ctx)
+		runner, err := s.GetRunner(ctx, in.ID)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil, huma.Error404NotFound("runner not found")
+			}
+			return nil, fmt.Errorf("get runner: %w", err)
+		}
+		if runner.AccountID != accountID {
+			return nil, huma.Error403Forbidden("runner does not belong to this account")
+		}
+
+		if in.Body.DateOfBirth != nil && *in.Body.DateOfBirth != runner.BirthDate {
+			// Locked iff this runner has any finished result. We check the
+			// status field across all their registrations.
+			regs, err := s.ListRegistrationsByRunner(ctx, runner.ID)
+			if err != nil {
+				return nil, fmt.Errorf("list registrations: %w", err)
+			}
+			for _, reg := range regs {
+				if reg.Status == models.StatusFinished {
+					return nil, huma.Error409Conflict("date of birth locked: this runner has finished results")
+				}
+			}
+			dob, err := time.Parse("2006-01-02", *in.Body.DateOfBirth)
+			if err != nil {
+				return nil, huma.Error422UnprocessableEntity("dateOfBirth must be YYYY-MM-DD")
+			}
+			if dob.After(time.Now()) {
+				return nil, huma.Error422UnprocessableEntity("dateOfBirth cannot be in the future")
+			}
+			runner.BirthDate = *in.Body.DateOfBirth
+		}
+		if in.Body.Name != nil {
+			runner.Name = strings.TrimSpace(*in.Body.Name)
+		}
+		if in.Body.Gender != nil {
+			runner.Gender = *in.Body.Gender
+		}
+
+		if err := s.UpdateRunner(ctx, *runner); err != nil {
+			return nil, fmt.Errorf("update runner: %w", err)
+		}
+
+		body, err := buildDSRMeBody(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		return &dsrMeOutput{Body: *body}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID: "dsr-patch-locale",
+		Method:      "PATCH",
+		Path:        "/dsr/me/locale",
+		Summary:     "Set the account's preferred language",
+		Tags:        []string{"dsr"},
+		Middlewares: dsrMW,
+	}, func(ctx context.Context, in *dsrPatchLocaleInput) (*dsrMeOutput, error) {
+		accountID := auth.DSRSubject(ctx)
+		account, err := s.GetAccountByID(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("get account: %w", err)
+		}
+		account.Locale = in.Body.Locale
+		if err := s.UpdateAccount(ctx, *account); err != nil {
+			return nil, fmt.Errorf("update account: %w", err)
+		}
+		body, err := buildDSRMeBody(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		return &dsrMeOutput{Body: *body}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "dsr-request-email-change",
+		Method:        "POST",
+		Path:          "/dsr/me/email/request-change",
+		Summary:       "Send a confirmation link to a proposed new email",
+		Description:   "Always returns 200 — silent if the address is already on another account, to avoid email enumeration via this endpoint. Click the link in the new inbox to actually change.",
+		Tags:          []string{"dsr"},
+		DefaultStatus: http.StatusOK,
+		Middlewares:   dsrMW,
+	}, func(ctx context.Context, in *dsrRequestEmailChangeInput) (*struct {
+		Body struct {
+			OK bool `json:"ok"`
+		}
+	}, error) {
+		out := &struct {
+			Body struct {
+				OK bool `json:"ok"`
+			}
+		}{}
+		out.Body.OK = true
+
+		addr, err := mail.ParseAddress(in.Body.NewEmail)
+		if err != nil {
+			return out, nil
+		}
+		normalizedNew := models.NormalizeEmail(addr.Address)
+
+		accountID := auth.DSRSubject(ctx)
+		account, err := s.GetAccountByID(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("get account: %w", err)
+		}
+		if normalizedNew == account.Email {
+			// Same as current — no-op. Silent-200 keeps the response shape
+			// uniform so the frontend can show one success state.
+			return out, nil
+		}
+
+		// If another account already owns the target email, silent-200. We
+		// don't want this endpoint to be an oracle for "is this email
+		// registered". The confirmation link won't arrive — the user sees
+		// nothing — same as the dsr/request-link semantics.
+		other, err := s.GetAccountByEmail(ctx, normalizedNew)
+		if err != nil {
+			return nil, fmt.Errorf("lookup other account: %w", err)
+		}
+		if other != nil && other.ID != accountID {
+			return out, nil
+		}
+
+		now := time.Now().UTC()
+		tokenID, err := newDSRTokenID()
+		if err != nil {
+			return nil, fmt.Errorf("generate email-change token: %w", err)
+		}
+		token := models.MagicToken{
+			Kind:      models.TokenKindEmailChange,
+			ID:        tokenID,
+			AccountID: account.ID,
+			ContextID: normalizedNew,
+			ExpiresAt: now.Add(emailChangeTokenTTL),
+			CreatedAt: now,
+		}
+		if err := s.CreateMagicToken(ctx, token); err != nil {
+			return nil, fmt.Errorf("store email-change token: %w", err)
+		}
+		if err := sendEmailChangeConfirmation(ctx, sender, normalizedNew, tokenID); err != nil {
+			log.Printf("email change confirmation send failed: accountId=%s tokenId=%s err=%v", account.ID, tokenID, err)
+		}
+		return out, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "dsr-confirm-email-change",
+		Method:        "POST",
+		Path:          "/dsr/me/email/confirm",
+		Summary:       "Confirm a pending email change",
+		Description:   "Redeems an email-change token (sent to the proposed new address) and atomically rewrites the EMAIL# sentinel. No DSR session required — possession of the token is the proof of ownership of the new address.",
+		Tags:          []string{"dsr"},
+		DefaultStatus: http.StatusOK,
+	}, func(ctx context.Context, in *dsrConfirmEmailChangeInput) (*dsrConfirmEmailChangeOutput, error) {
+		token, err := s.GetMagicToken(ctx, in.Body.Token)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil, huma.Error404NotFound("token not found or expired")
+			}
+			return nil, err
+		}
+		if token.Kind != models.TokenKindEmailChange {
+			return nil, huma.Error404NotFound("token not found or expired")
+		}
+		now := time.Now().UTC()
+		if token.UsedAt != nil {
+			return nil, huma.Error410Gone("token already used")
+		}
+		if !token.ExpiresAt.IsZero() && now.After(token.ExpiresAt) {
+			return nil, huma.Error410Gone("token expired")
+		}
+
+		// Mark used FIRST (conditional write) so two simultaneous clicks
+		// don't both succeed mid-swap.
+		if err := s.MarkMagicTokenUsed(ctx, token.ID, now); err != nil {
+			if errors.Is(err, store.ErrAlreadyExists) {
+				return nil, huma.Error410Gone("token already used")
+			}
+			return nil, err
+		}
+
+		account, err := s.GetAccountByID(ctx, token.AccountID)
+		if err != nil {
+			return nil, fmt.Errorf("get account: %w", err)
+		}
+		oldEmail := account.Email
+		newEmail := token.ContextID
+
+		if err := s.ChangeAccountEmail(ctx, account.ID, oldEmail, newEmail); err != nil {
+			if errors.Is(err, store.ErrAlreadyExists) {
+				// Race: someone else grabbed this email between request-change
+				// and confirm. Surface as 409 — the user might retry with a
+				// different address.
+				return nil, huma.Error409Conflict("email already taken")
+			}
+			return nil, fmt.Errorf("swap account email: %w", err)
+		}
+
+		out := &dsrConfirmEmailChangeOutput{}
+		out.Body.Email = newEmail
+		return out, nil
 	})
 }
 
@@ -441,5 +768,27 @@ func sendDSRAccessEmail(ctx context.Context, sender email.Sender, toEmail, token
 		Subject:    "Hantera dina uppgifter — Ingmarsöloppet",
 		TextBody:   body,
 		MessageTag: "dsr-access",
+	})
+}
+
+// sendEmailChangeConfirmation sends the verification link to the NEW address.
+// Crucially: the receiver of this email is the proof of ownership. Clicking
+// the link is what authorises the swap.
+func sendEmailChangeConfirmation(ctx context.Context, sender email.Sender, newEmail, tokenID string) error {
+	base := os.Getenv("SITE_BASE_URL")
+	if base == "" {
+		base = "https://running.rydback.net"
+	}
+	link := base + "/my-data/confirm-email?token=" + tokenID
+	body := "Hej!\n\n" +
+		"En begäran har gjorts att byta e-postadress till den här adressen på Ingmarsöloppet. " +
+		"Klicka på länken nedan inom 24 timmar för att bekräfta:\n\n" +
+		link + "\n\n" +
+		"Om du inte gjort den här begäran kan du bortse från mejlet — inget händer förrän du klickat på länken.\n"
+	return sender.Send(ctx, email.Message{
+		To:         newEmail,
+		Subject:    "Bekräfta din nya e-postadress — Ingmarsöloppet",
+		TextBody:   body,
+		MessageTag: "dsr-email-change",
 	})
 }

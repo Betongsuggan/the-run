@@ -27,7 +27,7 @@ func Register(
 	registerRaces(api, s, authCfg)
 	registerRunners(api, s, authCfg)
 	registerAdminRegistrations(api, s, authCfg)
-	registerResults(api, s)
+	registerResults(api, s, authCfg)
 	registerGuardianConsent(api, s)
 	registerDSR(api, s, authCfg, sender)
 

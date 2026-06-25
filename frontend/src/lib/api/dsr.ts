@@ -65,6 +65,42 @@ export async function dsrMe(): Promise<DSRMe> {
 	return api<DSRMe>('/dsr/me');
 }
 
+export type DSRConsentUpdate = { publicResults?: boolean };
+
+export type DSRPatchConsentsInput = {
+	marketing?: boolean;
+	perRunner?: Record<string, DSRConsentUpdate>;
+};
+
+export async function dsrPatchConsents(body: DSRPatchConsentsInput): Promise<DSRMe> {
+	return api<DSRMe>('/dsr/me/consents', { method: 'PATCH', body });
+}
+
+export type DSRPatchRunnerInput = {
+	name?: string;
+	gender?: 'M' | 'F' | 'X';
+	dateOfBirth?: string;
+};
+
+export async function dsrPatchRunner(id: string, body: DSRPatchRunnerInput): Promise<DSRMe> {
+	return api<DSRMe>(`/dsr/me/runners/${encodeURIComponent(id)}`, { method: 'PATCH', body });
+}
+
+export async function dsrPatchLocale(locale: 'sv' | 'en'): Promise<DSRMe> {
+	return api<DSRMe>('/dsr/me/locale', { method: 'PATCH', body: { locale } });
+}
+
+export async function dsrRequestEmailChange(newEmail: string): Promise<void> {
+	await api<{ ok: boolean }>('/dsr/me/email/request-change', {
+		method: 'POST',
+		body: { newEmail }
+	});
+}
+
+export async function dsrConfirmEmailChange(token: string): Promise<{ email: string }> {
+	return api<{ email: string }>('/dsr/me/email/confirm', { method: 'POST', body: { token } });
+}
+
 // dsrExportDownload bypasses the standard api() wrapper because it doesn't
 // return JSON to the caller — it triggers a browser download. We do the
 // fetch directly so we can read the response body as a blob and use a
