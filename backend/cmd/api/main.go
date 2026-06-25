@@ -11,6 +11,7 @@ import (
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"github.com/BirgerRydback/the-run/backend/internal/api"
+	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
@@ -22,8 +23,13 @@ func main() {
 		log.Fatalf("init store: %v", err)
 	}
 
+	authCfg, err := auth.LoadConfig(ctx)
+	if err != nil {
+		log.Fatalf("init auth config: %v", err)
+	}
+
 	mux := http.NewServeMux()
-	api.Register(mux, dynStore)
+	api.Register(mux, dynStore, authCfg)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") == "" {
 		addr := ":8080"
@@ -38,11 +44,19 @@ func main() {
 	})
 }
 
+// withDevCORS allows the SvelteKit dev server (:5173) to call this API with
+// cookies. Production CORS is configured on API Gateway; this is dev-only.
 func withDevCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		origin := r.Header.Get("Origin")
+		// Allow any localhost origin in dev — browsers reject "*" with credentials.
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

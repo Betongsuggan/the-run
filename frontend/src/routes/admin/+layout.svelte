@@ -12,15 +12,22 @@
 
 	let hydrateError = $state<string | null>(null);
 
-	onMount(() => {
-		dataStore.hydrate().catch((err) => {
-			hydrateError = err instanceof Error ? err.message : String(err);
-		});
+	onMount(async () => {
+		// Probe /auth/me first so the LoginForm doesn't flash before we know
+		// whether the cookie is still good.
+		await auth.hydrate();
+		if (auth.isAuthed) {
+			dataStore.hydrate().catch((err) => {
+				hydrateError = err instanceof Error ? err.message : String(err);
+			});
+		}
 	});
 </script>
 
 {#if isAcceptRoute}
 	{@render children()}
+{:else if !auth.hydrated}
+	<div class="mx-auto max-w-md py-12 text-center opacity-70">…</div>
 {:else if !auth.isAuthed}
 	<LoginForm />
 {:else if hydrateError}

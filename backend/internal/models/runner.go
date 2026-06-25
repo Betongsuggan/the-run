@@ -7,6 +7,7 @@ import (
 
 type Runner struct {
 	ID        string
+	AccountID string
 	Name      string
 	BirthDate string
 	Gender    string

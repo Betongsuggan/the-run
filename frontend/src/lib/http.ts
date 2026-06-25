@@ -15,7 +15,11 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
 	const fetchImpl = opts.fetch ?? fetch;
 	const init: RequestInit = {
 		method: opts.method ?? 'GET',
-		headers: opts.body !== undefined ? { 'Content-Type': 'application/json' } : undefined
+		headers: opts.body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+		// credentials: 'include' is required so admin session cookies flow on
+		// cross-subdomain requests (frontend ↔ api.{domain}). It's harmless on
+		// unauthenticated public endpoints.
+		credentials: 'include'
 	};
 	if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
 

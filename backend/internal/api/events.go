@@ -12,6 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
@@ -67,7 +68,9 @@ type updateEventInput struct {
 	}
 }
 
-func registerEvents(api huma.API, s store.Store) {
+func registerEvents(api huma.API, s store.Store, authCfg auth.Config) {
+	adminMW := adminMiddlewares(authCfg)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-events",
 		Method:      "GET",
@@ -112,6 +115,7 @@ func registerEvents(api huma.API, s store.Store) {
 		Summary:       "Create an event",
 		Tags:          []string{"events"},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *createEventInput) (*eventOutput, error) {
 		e := models.Event{
 			ID:        uuid.NewString(),
@@ -133,6 +137,7 @@ func registerEvents(api huma.API, s store.Store) {
 		Path:        "/events/{id}",
 		Summary:     "Update an event",
 		Tags:        []string{"events"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, in *updateEventInput) (*eventOutput, error) {
 		existing, err := s.GetEvent(ctx, in.ID)
 		if err != nil {
@@ -165,6 +170,7 @@ func registerEvents(api huma.API, s store.Store) {
 		Summary:       "Delete an event (cascades to races and registrations)",
 		Tags:          []string{"events"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *getEventInput) (*struct{}, error) {
 		if err := s.DeleteEvent(ctx, in.ID); err != nil {
 			return nil, fmt.Errorf("delete event: %w", err)

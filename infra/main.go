@@ -59,6 +59,8 @@ func runLocalstack(ctx *pulumi.Context) error {
 	ctx.Export("registrationsTableName", tables.Registrations.Name)
 	ctx.Export("eventsTableName", tables.Events.Name)
 	ctx.Export("racesTableName", tables.Races.Name)
+	ctx.Export("accountsTableName", tables.Accounts.Name)
+	ctx.Export("authAttemptsTableName", tables.AuthAttempts.Name)
 	ctx.Export("localstackEndpoint", pulumi.String(localstackEndpoint))
 	return nil
 }
@@ -116,6 +118,9 @@ func runAWS(ctx *pulumi.Context, cfg *config.Config) error {
 	ctx.Export("registrationsTableName", tables.Registrations.Name)
 	ctx.Export("eventsTableName", tables.Events.Name)
 	ctx.Export("racesTableName", tables.Races.Name)
+	ctx.Export("accountsTableName", tables.Accounts.Name)
+	ctx.Export("authAttemptsTableName", tables.AuthAttempts.Name)
+	ctx.Export("jwtSecretArn", be.JWTSecret.Arn)
 	ctx.Export("hostedZoneNameServers", nameServers)
 
 	return nil

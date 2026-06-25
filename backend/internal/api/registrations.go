@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 type RegisterInput struct {
 	Body struct {
 		Name        string `json:"name" minLength:"1" maxLength:"120" doc:"Full name of the registrant"`
+		Email       string `json:"email" format:"email" maxLength:"254" doc:"Contact email — used for race comms and to manage your data"`
 		DateOfBirth string `json:"dateOfBirth" format:"date" doc:"Birth date (YYYY-MM-DD)"`
 		Gender      string `json:"gender" enum:"M,F,X" doc:"Gender code"`
 		RaceID      string `json:"raceId" minLength:"1" doc:"ID of the race to register for"`
@@ -54,6 +56,12 @@ func registerRegistrations(api huma.API, s store.Store) {
 			return out, nil
 		}
 
+		addr, err := mail.ParseAddress(in.Body.Email)
+		if err != nil {
+			return nil, huma.Error422UnprocessableEntity("email is not a valid address")
+		}
+		normalizedEmail := models.NormalizeEmail(addr.Address)
+
 		dob, err := time.Parse("2006-01-02", in.Body.DateOfBirth)
 		if err != nil {
 			return nil, huma.Error422UnprocessableEntity("dateOfBirth must be YYYY-MM-DD")
@@ -62,18 +70,53 @@ func registerRegistrations(api huma.API, s store.Store) {
 			return nil, huma.Error422UnprocessableEntity("dateOfBirth cannot be in the future")
 		}
 
-		// TODO(B1): once race + event tables exist, validate that the race
-		// exists and its event date is today or later. For now we trust the
-		// raceId — the frontend filters to upcoming races.
+		// Find or create the Account this registration belongs to. Non-admin,
+		// no password — the runner won't log in yet; the account is just the
+		// contact identity for transactional comms and future DSR access.
+		account, err := s.GetAccountByEmail(ctx, normalizedEmail)
+		if err != nil {
+			return nil, fmt.Errorf("lookup account: %w", err)
+		}
+		if account == nil {
+			newAccount := models.Account{
+				ID:        uuid.NewString(),
+				Email:     normalizedEmail,
+				IsAdmin:   false,
+				CreatedAt: time.Now().UTC(),
+			}
+			if err := s.CreateAccount(ctx, newAccount); err != nil {
+				if errors.Is(err, store.ErrAlreadyExists) {
+					// Lost the create race; refetch.
+					account, err = s.GetAccountByEmail(ctx, normalizedEmail)
+					if err != nil || account == nil {
+						return nil, fmt.Errorf("resolve account after race: %w", err)
+					}
+				} else {
+					return nil, fmt.Errorf("create account: %w", err)
+				}
+			} else {
+				account = &newAccount
+			}
+		}
 
+		// Dedup within this account: query the byNameDOB GSI (which may return
+		// runners from other accounts) and reuse only if AccountID matches.
 		nameDobKey := models.NameDobKey(in.Body.Name, in.Body.DateOfBirth)
-		runner, err := s.RunnerByNameDOB(ctx, nameDobKey)
+		candidates, err := s.RunnerByNameDOB(ctx, nameDobKey)
 		if err != nil {
 			return nil, fmt.Errorf("lookup runner: %w", err)
+		}
+		var runner *models.Runner
+		for i := range candidates {
+			if candidates[i].AccountID == account.ID {
+				runner = &candidates[i]
+				break
+			}
 		}
 		if runner == nil {
 			runner = &models.Runner{
 				ID:        uuid.NewString(),
+				AccountID: account.ID,
 				Name:      strings.TrimSpace(in.Body.Name),
 				BirthDate: in.Body.DateOfBirth,
 				Gender:    in.Body.Gender,
@@ -98,7 +141,8 @@ func registerRegistrations(api huma.API, s store.Store) {
 			return nil, fmt.Errorf("create registration: %w", err)
 		}
 
-		log.Printf("registration stored: id=%s runnerId=%s raceId=%s", reg.ID, runner.ID, reg.RaceID)
+		// IDs only — never log name, email, or DOB (GDPR A0.5).
+		log.Printf("registration stored: id=%s runnerId=%s raceId=%s accountId=%s", reg.ID, runner.ID, reg.RaceID, account.ID)
 
 		out := &RegisterOutput{}
 		out.Body.ID = reg.ID

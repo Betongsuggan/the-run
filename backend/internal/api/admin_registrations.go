@@ -11,6 +11,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
@@ -181,13 +182,16 @@ func toStoreUpdate(raceID, runnerID string, f registrationFields) (store.Registr
 	return u, nil
 }
 
-func registerAdminRegistrations(api huma.API, s store.Store) {
+func registerAdminRegistrations(api huma.API, s store.Store, authCfg auth.Config) {
+	adminMW := adminMiddlewares(authCfg)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-all-registrations",
 		Method:      "GET",
 		Path:        "/registrations",
 		Summary:     "List all registrations (admin)",
 		Tags:        []string{"registrations"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, _ *struct{}) (*listRegistrationsOutput, error) {
 		regs, err := s.ListRegistrations(ctx)
 		if err != nil {
@@ -207,6 +211,7 @@ func registerAdminRegistrations(api huma.API, s store.Store) {
 		Path:        "/races/{raceId}/registrations",
 		Summary:     "List registrations for a race",
 		Tags:        []string{"registrations"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, in *listRegistrationsByRaceInput) (*listRegistrationsOutput, error) {
 		regs, err := s.ListRegistrationsByRace(ctx, in.RaceID)
 		if err != nil {
@@ -228,6 +233,7 @@ func registerAdminRegistrations(api huma.API, s store.Store) {
 		Description:   "Admin-side counterpart to POST /registrations. Skips the public form's honeypot and date-of-birth validation, since the runner already exists.",
 		Tags:          []string{"registrations"},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *createAdminRegistrationInput) (*registrationOutput, error) {
 		if _, err := s.GetRace(ctx, in.Body.RaceID); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
@@ -270,6 +276,7 @@ func registerAdminRegistrations(api huma.API, s store.Store) {
 		Path:        "/races/{raceId}/registrations/{runnerId}",
 		Summary:     "Update fields on a single registration",
 		Tags:        []string{"registrations"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, in *updateRegistrationInput) (*registrationOutput, error) {
 		u, err := toStoreUpdate(in.RaceID, in.RunnerID, in.Body)
 		if err != nil {
@@ -291,6 +298,7 @@ func registerAdminRegistrations(api huma.API, s store.Store) {
 		Path:        "/registrations/bulk",
 		Summary:     "Update multiple registrations in one call",
 		Tags:        []string{"registrations"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, in *bulkUpdateRegistrationInput) (*bulkUpdateRegistrationOutput, error) {
 		results := make([]RegistrationDTO, 0, len(in.Body.Updates))
 		for _, raw := range in.Body.Updates {
@@ -319,6 +327,7 @@ func registerAdminRegistrations(api huma.API, s store.Store) {
 		Summary:       "Delete a registration",
 		Tags:          []string{"registrations"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *registrationKeyInput) (*struct{}, error) {
 		if err := s.DeleteRegistration(ctx, in.RaceID, in.RunnerID); err != nil {
 			return nil, fmt.Errorf("delete registration: %w", err)

@@ -9,6 +9,8 @@ import (
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/apigatewayv2"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
 	awslambda "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/lambda"
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/secretsmanager"
+	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/BirgerRydback/the-run/infra/database"
@@ -16,14 +18,16 @@ import (
 
 // Resources is the set of backend resources main.go exports outputs for.
 type Resources struct {
-	API      *apigatewayv2.Api
-	Function *awslambda.Function
+	API       *apigatewayv2.Api
+	Function  *awslambda.Function
+	JWTSecret *secretsmanager.Secret
 }
 
-// Setup provisions the full backend stack: cert, IAM role, Lambda, HTTP API,
-// integration + routes + stage + custom domain, and the alias record. The
-// Lambda is granted read/write access to the DynamoDB tables in `tables` and
-// receives their names via environment variables.
+// Setup provisions the full backend stack: cert, IAM role, JWT signing secret,
+// Lambda, HTTP API, integration + routes + stage + custom domain, and the
+// alias record. The Lambda is granted read/write access to the DynamoDB tables
+// in `tables`, read-only access to the JWT secret, and receives table names +
+// secret ARN via environment variables.
 func Setup(
 	ctx *pulumi.Context,
 	apiFQDN, siteFQDN string,
@@ -31,6 +35,36 @@ func Setup(
 	tables *database.Tables,
 ) (*Resources, error) {
 	cert, certValidation, err := createCert(ctx, apiFQDN, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Random 64-byte hex string for the JWT signing key. RandomPassword stores
+	// the value in Pulumi state encrypted (KMS-backed); rotating means
+	// destroy+recreate this resource — invalidates all sessions.
+	jwtKey, err := random.NewRandomPassword(ctx, "jwt-signing-key", &random.RandomPasswordArgs{
+		Length:  pulumi.Int(64),
+		Special: pulumi.Bool(false),
+		Upper:   pulumi.Bool(true),
+		Lower:   pulumi.Bool(true),
+		Numeric: pulumi.Bool(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	jwtSecret, err := secretsmanager.NewSecret(ctx, "jwt-secret", &secretsmanager.SecretArgs{
+		Name:        pulumi.String("the-run/jwt-signing-key"),
+		Description: pulumi.String("HMAC-SHA256 signing key for the-run admin session JWTs"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = secretsmanager.NewSecretVersion(ctx, "jwt-secret-version", &secretsmanager.SecretVersionArgs{
+		SecretId:     jwtSecret.ID(),
+		SecretString: jwtKey.Result,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -66,11 +100,14 @@ func Setup(
 
 	dynamoPolicy := pulumi.All(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
+		tables.Accounts.Arn, tables.AuthAttempts.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
 		eventsArn := args[2].(string)
 		racesArn := args[3].(string)
+		accountsArn := args[4].(string)
+		attemptsArn := args[5].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -85,6 +122,7 @@ func Setup(
 						"dynamodb:Scan",
 						"dynamodb:ConditionCheckItem",
 						"dynamodb:BatchWriteItem",
+						"dynamodb:TransactWriteItems",
 					},
 					"Resource": []string{
 						runnersArn,
@@ -95,6 +133,10 @@ func Setup(
 						eventsArn + "/index/*",
 						racesArn,
 						racesArn + "/index/*",
+						accountsArn,
+						accountsArn + "/index/*",
+						attemptsArn,
+						attemptsArn + "/index/*",
 					},
 				},
 			},
@@ -108,6 +150,31 @@ func Setup(
 	_, err = iam.NewRolePolicy(ctx, "lambda-dynamodb", &iam.RolePolicyArgs{
 		Role:   lambdaRole.ID(),
 		Policy: dynamoPolicy,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	secretsPolicy := jwtSecret.Arn.ApplyT(func(arn string) (string, error) {
+		doc, err := json.Marshal(map[string]any{
+			"Version": "2012-10-17",
+			"Statement": []any{
+				map[string]any{
+					"Effect":   "Allow",
+					"Action":   []string{"secretsmanager:GetSecretValue"},
+					"Resource": arn,
+				},
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		return string(doc), nil
+	}).(pulumi.StringOutput)
+
+	_, err = iam.NewRolePolicy(ctx, "lambda-secrets", &iam.RolePolicyArgs{
+		Role:   lambdaRole.ID(),
+		Policy: secretsPolicy,
 	})
 	if err != nil {
 		return nil, err
@@ -128,6 +195,11 @@ func Setup(
 				"REGISTRATIONS_TABLE_NAME": tables.Registrations.Name,
 				"EVENTS_TABLE_NAME":        tables.Events.Name,
 				"RACES_TABLE_NAME":         tables.Races.Name,
+				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
+				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
+				"JWT_SECRET_ARN":           jwtSecret.Arn,
+				"COOKIE_DOMAIN":            pulumi.String("." + siteFQDN), // share session across api.x and x
+				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
 			},
 		},
 	})
@@ -143,11 +215,13 @@ func Setup(
 				pulumi.String("GET"),
 				pulumi.String("POST"),
 				pulumi.String("PUT"),
+				pulumi.String("PATCH"),
 				pulumi.String("DELETE"),
 				pulumi.String("OPTIONS"),
 			},
-			AllowHeaders: pulumi.StringArray{pulumi.String("content-type"), pulumi.String("authorization")},
-			MaxAge:       pulumi.Int(300),
+			AllowHeaders:     pulumi.StringArray{pulumi.String("content-type")},
+			AllowCredentials: pulumi.Bool(true),
+			MaxAge:           pulumi.Int(300),
 		},
 	})
 	if err != nil {
@@ -228,7 +302,8 @@ func Setup(
 	}
 
 	return &Resources{
-		API:      api,
-		Function: fn,
+		API:       api,
+		Function:  fn,
+		JWTSecret: jwtSecret,
 	}, nil
 }

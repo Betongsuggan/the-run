@@ -136,6 +136,9 @@ const sv = {
 		subheading: 'Fyll i dina uppgifter och välj vilket lopp du vill springa.',
 		nameLabel: 'Namn',
 		namePlaceholder: 't.ex. Anna Andersson',
+		emailLabel: 'E-post',
+		emailPlaceholder: 'din@email.se',
+		emailHelp: 'Används för bekräftelse, information om loppet och för att hantera dina uppgifter.',
 		dobLabel: 'Födelsedatum',
 		genderLabel: 'Kön',
 		raceLabel: 'Lopp',
@@ -159,20 +162,22 @@ const sv = {
 			passwordLabel: 'Lösenord',
 			submit: 'Logga in',
 			submitting: 'Loggar in…',
-			mockHint: (email: string, password: string) =>
-				`Mockläge: använd ${email} / ${password} för att logga in.`
+			verifyHeading: 'Tvåfaktorskod',
+			verifySubheading: 'Ange den 6-siffriga koden från din autentiseringsapp.',
+			enrollHeading: 'Aktivera tvåfaktorsautentisering',
+			enrollSubheading:
+				'Skanna QR-koden eller lägg till nyckeln manuellt i en autentiseringsapp och ange den 6-siffriga koden.',
+			enrollInstructions:
+				'Skanna länken nedan med en autentiseringsapp (t.ex. 1Password, Authy, Google Authenticator).',
+			enrollSecretLabel: 'Manuell nyckel:',
+			codeLabel: 'Engångskod',
+			codeSubmit: 'Verifiera'
 		},
 		accept: {
 			heading: 'Acceptera inbjudan',
-			subheading: 'Sätt ett lösenord för att slutföra din registrering.',
-			emailLabel: 'E-post',
-			passwordLabel: 'Nytt lösenord',
-			passwordHint: 'Minst 6 tecken.',
-			submit: 'Slutför',
-			submitting: 'Sparar…',
-			missingToken: 'Saknar inbjudningstoken.',
-			alreadyAccepted: 'Inbjudan är redan använd.',
-			success: 'Klart — du är inloggad.'
+			iterationNotice:
+				'Inbjudningsflöde är inte aktivt än. Be administratören att skapa kontot via just create-admin.',
+			backToLogin: 'Till inloggning'
 		},
 		nav: {
 			dashboard: 'Översikt',
@@ -285,19 +290,9 @@ const sv = {
 		},
 		users: {
 			heading: 'Adminanvändare',
-			invite: 'Bjud in användare',
-			inviteHeading: 'Bjud in ny användare',
-			inviteEmailLabel: 'E-post',
-			inviteSubmit: 'Skicka inbjudan',
-			inviteCreated: 'Inbjudan skapad. Skicka denna länk till mottagaren:',
-			pendingHeading: 'Väntande inbjudningar',
-			usersHeading: 'Aktiva användare',
-			columnEmail: 'E-post',
-			columnCreated: 'Skapad',
-			columnInvitedBy: 'Inbjuden av',
-			pendingBadge: 'Väntar',
-			revoke: 'Återkalla',
-			youBadge: 'Du'
+			iterationNotice:
+				'Inbjudningsflöde och hantering av flera adminanvändare kommer i en senare iteration. Använd just create-admin från terminalen för att skapa fler administratörer.',
+			currentSession: (email: string) => `Inloggad som ${email}.`
 		}
 	}
 };
@@ -433,6 +428,9 @@ const en: Catalog = {
 		subheading: 'Fill in your details and pick which race you want to run.',
 		nameLabel: 'Name',
 		namePlaceholder: 'e.g. Anna Andersson',
+		emailLabel: 'Email',
+		emailPlaceholder: 'you@example.com',
+		emailHelp: 'Used for confirmation, race-day information, and to manage your data.',
 		dobLabel: 'Date of birth',
 		genderLabel: 'Gender',
 		raceLabel: 'Race',
@@ -456,20 +454,22 @@ const en: Catalog = {
 			passwordLabel: 'Password',
 			submit: 'Sign in',
 			submitting: 'Signing in…',
-			mockHint: (email: string, password: string) =>
-				`Mock mode: log in with ${email} / ${password}.`
+			verifyHeading: 'Two-factor code',
+			verifySubheading: 'Enter the 6-digit code from your authenticator app.',
+			enrollHeading: 'Enable two-factor authentication',
+			enrollSubheading:
+				'Scan the QR or add the key manually in an authenticator app, then enter the 6-digit code.',
+			enrollInstructions:
+				'Add the link below to an authenticator app (e.g. 1Password, Authy, Google Authenticator).',
+			enrollSecretLabel: 'Manual key:',
+			codeLabel: 'One-time code',
+			codeSubmit: 'Verify'
 		},
 		accept: {
 			heading: 'Accept invitation',
-			subheading: 'Set a password to finish creating your account.',
-			emailLabel: 'Email',
-			passwordLabel: 'New password',
-			passwordHint: 'At least 6 characters.',
-			submit: 'Finish',
-			submitting: 'Saving…',
-			missingToken: 'Missing invitation token.',
-			alreadyAccepted: 'This invitation has already been used.',
-			success: "You're signed in."
+			iterationNotice:
+				'Invitation flow is not active yet. Ask the admin to create the account using just create-admin.',
+			backToLogin: 'Back to sign-in'
 		},
 		nav: {
 			dashboard: 'Overview',
@@ -583,19 +583,9 @@ const en: Catalog = {
 		},
 		users: {
 			heading: 'Admin users',
-			invite: 'Invite user',
-			inviteHeading: 'Invite a new user',
-			inviteEmailLabel: 'Email',
-			inviteSubmit: 'Send invitation',
-			inviteCreated: 'Invitation created. Send this link to the recipient:',
-			pendingHeading: 'Pending invitations',
-			usersHeading: 'Active users',
-			columnEmail: 'Email',
-			columnCreated: 'Created',
-			columnInvitedBy: 'Invited by',
-			pendingBadge: 'Pending',
-			revoke: 'Revoke',
-			youBadge: 'You'
+			iterationNotice:
+				'Invitation flow and multi-admin management is a later iteration. Use just create-admin from the terminal to add more administrators.',
+			currentSession: (email: string) => `Signed in as ${email}.`
 		}
 	}
 };

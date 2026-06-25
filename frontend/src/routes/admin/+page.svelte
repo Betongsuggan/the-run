@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import Users from '@lucide/svelte/icons/users';
 	import Calendar from '@lucide/svelte/icons/calendar';
@@ -8,19 +7,12 @@
 	import UserCog from '@lucide/svelte/icons/user-cog';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { dataStore } from '$lib/store/data.svelte';
-	import { listInvites, listUsers, type AdminInvite } from '$lib/admin/api';
-	import type { AdminUser } from '$lib/admin/auth.svelte';
+	import { auth } from '$lib/admin/auth.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 
-	let users: AdminUser[] = $state([]);
-	let invites: AdminInvite[] = $state([]);
-
-	onMount(async () => {
-		users = await listUsers();
-		invites = await listInvites();
-	});
-
-	const pendingInvites = $derived(invites.filter((i) => !i.acceptedAt));
+	// User management (multi-admin invites, listing) moved out of the dashboard
+	// while we wait for a server-backed implementation in a later slice. The
+	// current session lives in auth.user.
 	const finishedCount = $derived(
 		dataStore.registrations.filter((r) => r.status === 'finished').length
 	);
@@ -70,10 +62,7 @@
 		<StatCard
 			icon={UserCog}
 			label={i18n.m.admin.dashboard.users}
-			value={users.length}
-			sublabel={pendingInvites.length > 0
-				? i18n.m.admin.dashboard.pendingInvites(pendingInvites.length)
-				: undefined}
+			value={auth.user ? 1 : 0}
 			tone="primary"
 		/>
 	</section>

@@ -18,6 +18,7 @@
 	let loading = $state(true);
 
 	let name = $state('');
+	let email = $state('');
 	let dateOfBirth = $state('');
 	let gender = $state<Gender>('M');
 	let raceId = $state('');
@@ -66,6 +67,7 @@
 		try {
 			await registerForRace({
 				name: name.trim(),
+				email: email.trim(),
 				dateOfBirth,
 				gender,
 				raceId,
@@ -82,6 +84,7 @@
 	function resetForAnother() {
 		success = false;
 		name = '';
+		email = '';
 		dateOfBirth = '';
 		gender = 'M';
 		errorMsg = null;
@@ -148,6 +151,19 @@
 						class="input"
 						autocomplete="name"
 					/>
+				</label>
+
+				<label class="block space-y-1">
+					<span class="text-sm font-medium">{i18n.m.register.emailLabel}</span>
+					<input
+						type="email"
+						required
+						bind:value={email}
+						placeholder={i18n.m.register.emailPlaceholder}
+						class="input"
+						autocomplete="email"
+					/>
+					<span class="text-xs opacity-60">{i18n.m.register.emailHelp}</span>
 				</label>
 
 				<label class="block space-y-1">

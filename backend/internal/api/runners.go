@@ -11,6 +11,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
@@ -85,7 +86,9 @@ func birthDateFromYear(year *int) string {
 	return fmt.Sprintf("%04d-01-01", *year)
 }
 
-func registerRunners(api huma.API, s store.Store) {
+func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
+	adminMW := adminMiddlewares(authCfg)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-runners",
 		Method:      "GET",
@@ -129,16 +132,24 @@ func registerRunners(api huma.API, s store.Store) {
 		Summary:       "Create a runner",
 		Tags:          []string{"runners"},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *createRunnerInput) (*runnerOutput, error) {
 		birthDate := birthDateFromYear(in.Body.BirthYear)
 		name := strings.TrimSpace(in.Body.Name)
 		if birthDate != "" {
+			// Name+DOB is no longer globally unique with the Account model
+			// (two accounts can each have a runner with the same name+DOB).
+			// Admin-created runners have no AccountID; we only block on
+			// other admin-created collisions here so the admin doesn't
+			// accidentally duplicate their own data entry.
 			existing, err := s.RunnerByNameDOB(ctx, models.NameDobKey(name, birthDate))
 			if err != nil {
 				return nil, fmt.Errorf("lookup runner: %w", err)
 			}
-			if existing != nil {
-				return nil, huma.Error409Conflict("a runner with that name and birth year already exists")
+			for _, e := range existing {
+				if e.AccountID == "" {
+					return nil, huma.Error409Conflict("a runner with that name and birth year already exists")
+				}
 			}
 		}
 		r := models.Runner{
@@ -160,6 +171,7 @@ func registerRunners(api huma.API, s store.Store) {
 		Path:        "/runners/{id}",
 		Summary:     "Update a runner",
 		Tags:        []string{"runners"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, in *updateRunnerInput) (*runnerOutput, error) {
 		existing, err := s.GetRunner(ctx, in.ID)
 		if err != nil {
@@ -191,6 +203,7 @@ func registerRunners(api huma.API, s store.Store) {
 		Summary:       "Delete a runner (cascades to registrations)",
 		Tags:          []string{"runners"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *runnerIDInput) (*struct{}, error) {
 		if err := s.DeleteRunner(ctx, in.ID); err != nil {
 			return nil, fmt.Errorf("delete runner: %w", err)

@@ -17,6 +17,7 @@ export async function getHello(fetchImpl: typeof fetch = fetch): Promise<Hello> 
 
 export type RegisterForRaceInput = {
 	name: string;
+	email: string;
 	dateOfBirth: string;
 	gender: 'M' | 'F' | 'X';
 	raceId: string;

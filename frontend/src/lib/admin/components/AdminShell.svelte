@@ -12,7 +12,6 @@
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { auth } from '$lib/admin/auth.svelte';
-	import { logout } from '$lib/admin/api';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -23,7 +22,7 @@
 	}
 
 	async function onLogout() {
-		await logout();
+		await auth.logout();
 		await goto(resolve('/admin'));
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
@@ -70,7 +71,9 @@ type updateRaceInput struct {
 	}
 }
 
-func registerRaces(api huma.API, s store.Store) {
+func registerRaces(api huma.API, s store.Store, authCfg auth.Config) {
+	adminMW := adminMiddlewares(authCfg)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-races",
 		Method:      "GET",
@@ -133,6 +136,7 @@ func registerRaces(api huma.API, s store.Store) {
 		Summary:       "Create a race",
 		Tags:          []string{"races"},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *createRaceInput) (*raceOutput, error) {
 		if _, err := s.GetEvent(ctx, in.Body.EventID); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
@@ -160,6 +164,7 @@ func registerRaces(api huma.API, s store.Store) {
 		Path:        "/races/{id}",
 		Summary:     "Update a race",
 		Tags:        []string{"races"},
+		Middlewares: adminMW,
 	}, func(ctx context.Context, in *updateRaceInput) (*raceOutput, error) {
 		existing, err := s.GetRace(ctx, in.ID)
 		if err != nil {
@@ -200,6 +205,7 @@ func registerRaces(api huma.API, s store.Store) {
 		Summary:       "Delete a race (cascades to registrations)",
 		Tags:          []string{"races"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *raceIDInput) (*struct{}, error) {
 		if err := s.DeleteRace(ctx, in.ID); err != nil {
 			return nil, fmt.Errorf("delete race: %w", err)

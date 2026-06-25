@@ -35,8 +35,18 @@ func TestDynamoStore_RegistrationFlow(t *testing.T) {
 		t.Fatalf("build store: %v", err)
 	}
 
+	account := models.Account{
+		ID:        uuid.NewString(),
+		Email:     "integration+" + uuid.NewString() + "@example.com",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := s.CreateAccount(ctx, account); err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+
 	runner := models.Runner{
 		ID:        uuid.NewString(),
+		AccountID: account.ID,
 		Name:      "Integration Test Runner " + uuid.NewString(),
 		BirthDate: "1990-01-01",
 		Gender:    "X",
@@ -51,7 +61,7 @@ func TestDynamoStore_RegistrationFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("lookup runner: %v", err)
 	}
-	if got == nil || got.ID != runner.ID {
+	if len(got) == 0 || got[0].ID != runner.ID {
 		t.Fatalf("runner lookup mismatch: got=%+v want id=%s", got, runner.ID)
 	}
 

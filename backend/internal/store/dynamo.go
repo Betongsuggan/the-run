@@ -20,6 +20,7 @@ import (
 
 const (
 	byNameDOBIndex = "byNameDOB"
+	byAccountIndex = "byAccount"
 	byRunnerIndex  = "byRunner"
 	byEventIndex   = "byEvent"
 )
@@ -30,6 +31,8 @@ type DynamoStore struct {
 	registrationsTable string
 	eventsTable        string
 	racesTable         string
+	accountsTable      string
+	authAttemptsTable  string
 }
 
 // NewDynamoStoreFromEnv reads RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME,
@@ -41,8 +44,10 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	registrationsTable := os.Getenv("REGISTRATIONS_TABLE_NAME")
 	eventsTable := os.Getenv("EVENTS_TABLE_NAME")
 	racesTable := os.Getenv("RACES_TABLE_NAME")
-	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" {
-		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME must all be set")
+	accountsTable := os.Getenv("ACCOUNTS_TABLE_NAME")
+	authAttemptsTable := os.Getenv("AUTH_ATTEMPTS_TABLE_NAME")
+	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" {
+		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME must all be set")
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
@@ -63,6 +68,8 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 		registrationsTable: registrationsTable,
 		eventsTable:        eventsTable,
 		racesTable:         racesTable,
+		accountsTable:      accountsTable,
+		authAttemptsTable:  authAttemptsTable,
 	}, nil
 }
 
@@ -70,6 +77,7 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 
 type runnerItem struct {
 	ID         string `dynamodbav:"id"`
+	AccountID  string `dynamodbav:"accountId"`
 	NameDobKey string `dynamodbav:"nameDobKey"`
 	Name       string `dynamodbav:"name"`
 	BirthDate  string `dynamodbav:"birthDate"`
@@ -81,6 +89,7 @@ func runnerFromItem(item runnerItem) models.Runner {
 	createdAt, _ := time.Parse(time.RFC3339, item.CreatedAt)
 	return models.Runner{
 		ID:        item.ID,
+		AccountID: item.AccountID,
 		Name:      item.Name,
 		BirthDate: item.BirthDate,
 		Gender:    item.Gender,
@@ -88,7 +97,10 @@ func runnerFromItem(item runnerItem) models.Runner {
 	}
 }
 
-func (s *DynamoStore) RunnerByNameDOB(ctx context.Context, nameDobKey string) (*models.Runner, error) {
+// RunnerByNameDOB returns every Runner record matching the given name+DOB key.
+// With the Account model, two different Accounts can each own a Runner with
+// the same name+DOB; callers filter the returned slice by AccountID.
+func (s *DynamoStore) RunnerByNameDOB(ctx context.Context, nameDobKey string) ([]models.Runner, error) {
 	out, err := s.client.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(s.runnersTable),
 		IndexName:              aws.String(byNameDOBIndex),
@@ -96,21 +108,19 @@ func (s *DynamoStore) RunnerByNameDOB(ctx context.Context, nameDobKey string) (*
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
 			":k": &dynamodbtypes.AttributeValueMemberS{Value: nameDobKey},
 		},
-		Limit: aws.Int32(1),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("query runners byNameDOB: %w", err)
 	}
-	if len(out.Items) == 0 {
-		return nil, nil
+	runners := make([]models.Runner, 0, len(out.Items))
+	for _, raw := range out.Items {
+		var item runnerItem
+		if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
+			return nil, fmt.Errorf("unmarshal runner: %w", err)
+		}
+		runners = append(runners, runnerFromItem(item))
 	}
-
-	var item runnerItem
-	if err := attributevalue.UnmarshalMap(out.Items[0], &item); err != nil {
-		return nil, fmt.Errorf("unmarshal runner: %w", err)
-	}
-	r := runnerFromItem(item)
-	return &r, nil
+	return runners, nil
 }
 
 func (s *DynamoStore) ListRunners(ctx context.Context) ([]models.Runner, error) {
@@ -120,6 +130,32 @@ func (s *DynamoStore) ListRunners(ctx context.Context) ([]models.Runner, error) 
 	}
 	runners := make([]models.Runner, 0, len(items))
 	for _, raw := range items {
+		var item runnerItem
+		if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
+			return nil, fmt.Errorf("unmarshal runner: %w", err)
+		}
+		runners = append(runners, runnerFromItem(item))
+	}
+	return runners, nil
+}
+
+// ListRunnersByAccount returns every Runner owned by a given Account. Used by
+// the DSR self-service surface so a guardian can manage themselves + kids in
+// one session. Queries the byAccount GSI.
+func (s *DynamoStore) ListRunnersByAccount(ctx context.Context, accountID string) ([]models.Runner, error) {
+	out, err := s.client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(s.runnersTable),
+		IndexName:              aws.String(byAccountIndex),
+		KeyConditionExpression: aws.String("accountId = :a"),
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			":a": &dynamodbtypes.AttributeValueMemberS{Value: accountID},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query runners byAccount: %w", err)
+	}
+	runners := make([]models.Runner, 0, len(out.Items))
+	for _, raw := range out.Items {
 		var item runnerItem
 		if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
 			return nil, fmt.Errorf("unmarshal runner: %w", err)
@@ -153,6 +189,7 @@ func (s *DynamoStore) GetRunner(ctx context.Context, id string) (*models.Runner,
 func (s *DynamoStore) CreateRunner(ctx context.Context, r models.Runner) error {
 	item, err := attributevalue.MarshalMap(runnerItem{
 		ID:         r.ID,
+		AccountID:  r.AccountID,
 		NameDobKey: r.NameDobKey(),
 		Name:       r.Name,
 		BirthDate:  r.BirthDate,
@@ -174,6 +211,7 @@ func (s *DynamoStore) CreateRunner(ctx context.Context, r models.Runner) error {
 func (s *DynamoStore) UpdateRunner(ctx context.Context, r models.Runner) error {
 	item, err := attributevalue.MarshalMap(runnerItem{
 		ID:         r.ID,
+		AccountID:  r.AccountID,
 		NameDobKey: r.NameDobKey(),
 		Name:       r.Name,
 		BirthDate:  r.BirthDate,

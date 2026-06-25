@@ -6,6 +6,7 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 )
@@ -40,9 +41,29 @@ type RegistrationUpdate struct {
 }
 
 type Store interface {
+	// Accounts
+	// GetAccountByID returns ErrNotFound when no account with the given id exists.
+	GetAccountByID(ctx context.Context, id string) (*models.Account, error)
+	// GetAccountByEmail returns (nil, nil) when no account is bound to the email
+	// (so callers can use the find-or-create pattern without distinguishing
+	// "missing" from "real error"). Returns ErrNotFound only when the email
+	// sentinel exists but the primary row is missing — an inconsistency.
+	GetAccountByEmail(ctx context.Context, email string) (*models.Account, error)
+	CreateAccount(ctx context.Context, a models.Account) error
+	UpdateAccount(ctx context.Context, a models.Account) error
+	TouchAccountLastLogin(ctx context.Context, id string, at time.Time) error
+
+	// Auth attempts — failed-login tracking with TTL, drives lockout.
+	RecordAuthAttempt(ctx context.Context, accountID string, at time.Time, ttl time.Duration) error
+	CountActiveAuthAttempts(ctx context.Context, accountID string, now time.Time) (int, error)
+	ClearAuthAttempts(ctx context.Context, accountID string) error
+
 	// Runners
-	RunnerByNameDOB(ctx context.Context, nameDobKey string) (*models.Runner, error)
+	// RunnerByNameDOB may return multiple Runner records — one per Account
+	// that has someone with this (name, DOB). Callers filter by AccountID.
+	RunnerByNameDOB(ctx context.Context, nameDobKey string) ([]models.Runner, error)
 	ListRunners(ctx context.Context) ([]models.Runner, error)
+	ListRunnersByAccount(ctx context.Context, accountID string) ([]models.Runner, error)
 	GetRunner(ctx context.Context, id string) (*models.Runner, error)
 	CreateRunner(ctx context.Context, r models.Runner) error
 	UpdateRunner(ctx context.Context, r models.Runner) error

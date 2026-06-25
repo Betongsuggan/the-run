@@ -110,7 +110,64 @@ dev-backend:
     export REGISTRATIONS_TABLE_NAME=the-run-registrations
     export EVENTS_TABLE_NAME=the-run-events
     export RACES_TABLE_NAME=the-run-races
+    export ACCOUNTS_TABLE_NAME=the-run-accounts
+    export AUTH_ATTEMPTS_TABLE_NAME=the-run-auth-attempts
+    # Local dev only: a fixed JWT_SECRET avoids the Secrets Manager dependency.
+    # Production reads from Secrets Manager via JWT_SECRET_ARN — see infra/backend.
+    export JWT_SECRET=local-dev-only-do-not-ship-this-must-be-32-chars-or-more
+    # Cookies set by the dev API must NOT be Secure (http://) and the cookie
+    # domain must be unset so the browser scopes them to localhost.
+    export INSECURE_COOKIES=1
     go run ./cmd/api
+
+# Create the first admin account directly in DynamoDB (skips the auth-protected
+# API). Use after a fresh deploy or to bootstrap a new environment.
+# Usage:
+#   just create-admin email=you@example.com password='at least 12 chars'
+# Add force=1 to rotate the password of an existing account.
+create-admin email='' password='' force='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{email}}" ] || [ -z "{{password}}" ]; then
+      echo "usage: just create-admin email=... password=..." >&2
+      exit 2
+    fi
+    cd backend
+    if [ -n "${AWS_PROFILE:-}" ] && [ -z "${AWS_ENDPOINT_URL:-}" ]; then
+      eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+    fi
+    : "${RUNNERS_TABLE_NAME:=the-run-runners}"
+    : "${REGISTRATIONS_TABLE_NAME:=the-run-registrations}"
+    : "${EVENTS_TABLE_NAME:=the-run-events}"
+    : "${RACES_TABLE_NAME:=the-run-races}"
+    : "${ACCOUNTS_TABLE_NAME:=the-run-accounts}"
+    : "${AUTH_ATTEMPTS_TABLE_NAME:=the-run-auth-attempts}"
+    export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME
+    if [ -n "{{force}}" ]; then
+      go run ./cmd/admin -email "{{email}}" -password "{{password}}" -force
+    else
+      go run ./cmd/admin -email "{{email}}" -password "{{password}}"
+    fi
+
+# Wipe all the-run-* tables in LocalStack and re-create them via Pulumi. Use
+# when iterating on schema changes during development.
+reset-data: localstack-up
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{ localstack_env }}
+    export PULUMI_BACKEND_URL="{{ localstack_backend }}"
+    export PULUMI_CONFIG_PASSPHRASE="${PULUMI_CONFIG_PASSPHRASE:-localstack}"
+    echo "Destroying LocalStack tables…"
+    pulumi -C infra destroy --stack local --yes --target-dependents \
+      --target "urn:pulumi:local::the-run::aws:dynamodb/table:Table::runners-table" \
+      --target "urn:pulumi:local::the-run::aws:dynamodb/table:Table::registrations-table" \
+      --target "urn:pulumi:local::the-run::aws:dynamodb/table:Table::events-table" \
+      --target "urn:pulumi:local::the-run::aws:dynamodb/table:Table::races-table" \
+      --target "urn:pulumi:local::the-run::aws:dynamodb/table:Table::accounts-table" \
+      --target "urn:pulumi:local::the-run::aws:dynamodb/table:Table::auth-attempts-table" \
+      || true
+    echo "Re-creating tables…"
+    pulumi -C infra up --stack local --yes
 
 # Run the SvelteKit dev server on :5173
 dev-frontend:
