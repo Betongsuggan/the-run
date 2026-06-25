@@ -6,7 +6,13 @@
 	import Users from '@lucide/svelte/icons/users';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import type { Race, ResultExpanded } from '$lib/types';
-	import { formatCategory, formatDistance, formatPace, formatRaceName, formatTime } from '$lib/format';
+	import {
+		formatCategory,
+		formatDistance,
+		formatPace,
+		formatRaceName,
+		formatTime
+	} from '$lib/format';
 	import RankBadge from '$lib/components/RankBadge.svelte';
 
 	let { race, results }: { race: Race; results: ResultExpanded[] } = $props();
@@ -19,7 +25,10 @@
 <section class="card preset-filled-surface-50-950 border border-surface-200-800 p-5 space-y-3">
 	<header class="flex items-baseline justify-between gap-3 flex-wrap">
 		<div class="flex items-center gap-2 min-w-0">
-			<DisciplineIcon class="size-5 text-primary-600 dark:text-primary-300 shrink-0" aria-hidden="true" />
+			<DisciplineIcon
+				class="size-5 text-primary-600 dark:text-primary-300 shrink-0"
+				aria-hidden="true"
+			/>
 			<h3
 				class="text-lg font-semibold leading-tight truncate"
 				style="font-family: var(--heading-font-family);"

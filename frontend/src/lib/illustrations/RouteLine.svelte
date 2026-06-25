@@ -20,7 +20,15 @@
 	/>
 	<!-- Start pin -->
 	<circle cx="12" cy="32" r="6" fill="currentColor" />
-	<circle cx="12" cy="32" r="2.5" fill="currentColor" fill-opacity="0" stroke="white" stroke-width="1.5" />
+	<circle
+		cx="12"
+		cy="32"
+		r="2.5"
+		fill="currentColor"
+		fill-opacity="0"
+		stroke="white"
+		stroke-width="1.5"
+	/>
 	<!-- End flag -->
 	<g transform="translate(782 18)">
 		<rect width="1.5" height="22" fill="currentColor" />

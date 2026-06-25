@@ -22,7 +22,8 @@ const sv = {
 	footer: 'Ingmarsöloppet · mockdata — backend ej ansluten',
 	landing: {
 		description: 'En plattform för att visa löparresultat från årliga lopp.',
-		heroTagline: 'Löparglädje i Stockholms skärgård — resultat, statistik och historik från varje upplaga.',
+		heroTagline:
+			'Löparglädje i Stockholms skärgård — resultat, statistik och historik från varje upplaga.',
 		ctaEvents: 'Se loppen',
 		ctaRunners: 'Bläddra bland löpare',
 		ctaRegister: 'Anmäl dig till ett lopp',
@@ -273,13 +274,13 @@ const sv = {
 				dns: 'DNS'
 			},
 			saveChanges: 'Spara ändringar',
-			saveChangesWithCount: (n: number) =>
-				n === 1 ? 'Spara 1 ändring' : `Spara ${n} ändringar`,
+			saveChangesWithCount: (n: number) => (n === 1 ? 'Spara 1 ändring' : `Spara ${n} ändringar`),
 			nothingToSave: 'Inga ändringar att spara.',
 			saveSuccess: 'Sparat.',
 			invalidTime: 'Ogiltigt tidsformat. Använd mm:ss eller h:mm:ss.',
 			mustHaveFinishTime: 'Status "Klar" kräver en tid.',
-			confirmRemoveRegistration: 'Ta bort denna anmälan? Eventuell tid och anteckningar försvinner.',
+			confirmRemoveRegistration:
+				'Ta bort denna anmälan? Eventuell tid och anteckningar försvinner.',
 			emptyState: 'Inga löpare är anmälda än. Använd formuläret ovan för att anmäla.'
 		},
 		users: {
@@ -557,7 +558,8 @@ const en: Catalog = {
 			runnerSelectLabel: 'Runner',
 			bibLabel: 'Bib',
 			noRunnersAvailable: 'Every runner is already registered for this race.',
-			registeredHeading: (n: number) => (n === 1 ? '1 registered runner' : `${n} registered runners`),
+			registeredHeading: (n: number) =>
+				n === 1 ? '1 registered runner' : `${n} registered runners`,
 			columnRunner: 'Runner',
 			columnBib: 'Bib',
 			columnCategory: 'Category',
@@ -570,13 +572,13 @@ const en: Catalog = {
 				dns: 'DNS'
 			},
 			saveChanges: 'Save changes',
-			saveChangesWithCount: (n: number) =>
-				n === 1 ? 'Save 1 change' : `Save ${n} changes`,
+			saveChangesWithCount: (n: number) => (n === 1 ? 'Save 1 change' : `Save ${n} changes`),
 			nothingToSave: 'No changes to save.',
 			saveSuccess: 'Saved.',
 			invalidTime: 'Invalid time format. Use mm:ss or h:mm:ss.',
 			mustHaveFinishTime: 'Finished status requires a finish time.',
-			confirmRemoveRegistration: 'Remove this registration? Any recorded time and notes will be discarded.',
+			confirmRemoveRegistration:
+				'Remove this registration? Any recorded time and notes will be discarded.',
 			emptyState: 'No runners registered yet. Use the form above to register.'
 		},
 		users: {

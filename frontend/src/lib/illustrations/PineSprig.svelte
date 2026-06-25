@@ -2,12 +2,7 @@
 	let { class: className = '' }: { class?: string } = $props();
 </script>
 
-<svg
-	class={className}
-	viewBox="0 0 40 80"
-	aria-hidden="true"
-	xmlns="http://www.w3.org/2000/svg"
->
+<svg class={className} viewBox="0 0 40 80" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
 	<g fill="currentColor">
 		<!-- Stem -->
 		<rect x="19" y="10" width="2" height="62" rx="1" opacity="0.55" />

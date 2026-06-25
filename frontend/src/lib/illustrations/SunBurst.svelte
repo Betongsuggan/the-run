@@ -2,12 +2,7 @@
 	let { class: className = '' }: { class?: string } = $props();
 </script>
 
-<svg
-	class={className}
-	viewBox="0 0 240 240"
-	aria-hidden="true"
-	xmlns="http://www.w3.org/2000/svg"
->
+<svg class={className} viewBox="0 0 240 240" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
 	<g stroke="currentColor" stroke-linecap="round" stroke-width="3" opacity="0.5">
 		{#each Array(12), i (i)}
 			{@const angle = (i * 360) / 12}

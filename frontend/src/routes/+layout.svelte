@@ -22,7 +22,9 @@
 </script>
 
 <div class="min-h-screen flex flex-col">
-	<header class="sticky top-0 z-30 border-b border-surface-200-800 bg-surface-50-950/85 backdrop-blur">
+	<header
+		class="sticky top-0 z-30 border-b border-surface-200-800 bg-surface-50-950/85 backdrop-blur"
+	>
 		<nav class="mx-auto max-w-6xl px-4 py-3 flex items-center gap-6">
 			<a href={resolve('/')} class="flex items-center gap-2 group">
 				<span

@@ -108,11 +108,18 @@ dev-backend:
     export AWS_SECRET_ACCESS_KEY=test
     export RUNNERS_TABLE_NAME=the-run-runners
     export REGISTRATIONS_TABLE_NAME=the-run-registrations
+    export EVENTS_TABLE_NAME=the-run-events
+    export RACES_TABLE_NAME=the-run-races
     go run ./cmd/api
 
 # Run the SvelteKit dev server on :5173
 dev-frontend:
     cd frontend && pnpm dev
+
+# Seed the local API (must already be running on :8080 via `just dev-backend`)
+# with the fixture in backend/cmd/seed/main.go. Idempotent.
+seed-dev api='http://localhost:8080':
+    cd backend && API_BASE_URL={{api}} go run ./cmd/seed
 
 # ─── LocalStack ────────────────────────────────────────────────────────
 

@@ -39,12 +39,7 @@
 		sublabel={i18n.m.summary.acrossEvents(eventCount)}
 		tone="primary"
 	/>
-	<StatCard
-		icon={Route}
-		label={i18n.m.summary.totalDistance}
-		value="{totalKm} km"
-		tone="success"
-	/>
+	<StatCard icon={Route} label={i18n.m.summary.totalDistance} value="{totalKm} km" tone="success" />
 	<div class="card preset-filled-surface-50-950 border border-surface-200-800 p-4 flex gap-3">
 		<div
 			class="shrink-0 size-10 rounded-xl flex items-center justify-center bg-tertiary-100 text-tertiary-700 dark:bg-tertiary-900/40 dark:text-tertiary-300"

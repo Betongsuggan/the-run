@@ -40,7 +40,8 @@
 		<div class="flex items-center gap-1.5 text-xs opacity-70 mt-0.5">
 			<Footprints class="size-3.5" aria-hidden="true" />
 			<span>
-				{runner.gender}{#if age} · {age} yrs{/if}
+				{runner.gender}{#if age}
+					· {age} yrs{/if}
 			</span>
 		</div>
 	</div>

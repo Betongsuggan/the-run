@@ -15,6 +15,11 @@ func Register(mux *http.ServeMux, s store.Store) huma.API {
 
 	registerHello(api)
 	registerRegistrations(api, s)
+	registerEvents(api, s)
+	registerRaces(api, s)
+	registerRunners(api, s)
+	registerAdminRegistrations(api, s)
+	registerResults(api, s)
 
 	return api
 }

@@ -81,7 +81,11 @@
 <section class="space-y-6">
 	<PageHeader title={i18n.m.admin.events.heading}>
 		{#snippet action()}
-			<button type="button" class="btn preset-filled-primary-500 inline-flex items-center gap-2" onclick={openCreate}>
+			<button
+				type="button"
+				class="btn preset-filled-primary-500 inline-flex items-center gap-2"
+				onclick={openCreate}
+			>
 				<Plus class="size-4" />
 				{i18n.m.admin.events.add}
 			</button>

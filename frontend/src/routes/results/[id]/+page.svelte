@@ -72,7 +72,8 @@
 					{formatRaceName(result.race)}
 				</h1>
 				<div class="text-sm opacity-85 mt-2">
-					{result.event.name} · {formatDate(result.event.date)}{#if result.event.location} · {result.event.location}{/if}
+					{result.event.name} · {formatDate(result.event.date)}{#if result.event.location}
+						· {result.event.location}{/if}
 				</div>
 			</div>
 		</Hero>
@@ -101,7 +102,10 @@
 				label={i18n.m.result.placement}
 				value={result.placementOverall ? `#${result.placementOverall}` : '—'}
 				sublabel={result.placementCategory && result.category.ageGroup
-					? i18n.m.result.placementCategory(result.placementCategory, formatCategory(result.category))
+					? i18n.m.result.placementCategory(
+							result.placementCategory,
+							formatCategory(result.category)
+						)
 					: undefined}
 				tone="tertiary"
 			/>
@@ -132,10 +136,7 @@
 			<section>
 				<div class="flex items-center gap-3 mb-3">
 					<PineSprig class="size-8 text-success-700 dark:text-success-300 shrink-0" />
-					<h2
-						class="text-lg font-semibold"
-						style="font-family: var(--heading-font-family);"
-					>
+					<h2 class="text-lg font-semibold" style="font-family: var(--heading-font-family);">
 						{i18n.m.result.notesHeading}
 					</h2>
 				</div>

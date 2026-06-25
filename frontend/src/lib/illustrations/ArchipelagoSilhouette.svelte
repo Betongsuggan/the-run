@@ -11,7 +11,9 @@
 >
 	<!-- Far islands -->
 	<g fill="currentColor" fill-opacity="0.35">
-		<path d="M0 90 Q 80 70 160 88 T 320 90 T 480 86 T 640 92 T 800 84 T 960 92 T 1200 86 V 120 H 0 Z" />
+		<path
+			d="M0 90 Q 80 70 160 88 T 320 90 T 480 86 T 640 92 T 800 84 T 960 92 T 1200 86 V 120 H 0 Z"
+		/>
 	</g>
 	<!-- Mid islands with pine clusters -->
 	<g fill="currentColor" fill-opacity="0.65">

@@ -17,7 +17,8 @@
 
 	const toneClasses = {
 		primary: 'text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/40',
-		secondary: 'text-secondary-600 dark:text-secondary-300 bg-secondary-100 dark:bg-secondary-900/40',
+		secondary:
+			'text-secondary-600 dark:text-secondary-300 bg-secondary-100 dark:bg-secondary-900/40',
 		tertiary: 'text-tertiary-700 dark:text-tertiary-300 bg-tertiary-100 dark:bg-tertiary-900/40',
 		success: 'text-success-700 dark:text-success-300 bg-success-100 dark:bg-success-900/40'
 	} as const;

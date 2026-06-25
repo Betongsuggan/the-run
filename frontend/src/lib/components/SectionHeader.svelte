@@ -27,7 +27,9 @@
 		{#if Icon}
 			<Icon class="size-5 opacity-70" />
 		{/if}
-		<h2 class="h3 font-heading truncate" style="font-family: var(--heading-font-family);">{title}</h2>
+		<h2 class="h3 font-heading truncate" style="font-family: var(--heading-font-family);">
+			{title}
+		</h2>
 	</div>
 	{#if action}
 		<div class="ml-auto">

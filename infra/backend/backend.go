@@ -65,10 +65,12 @@ func Setup(
 	}
 
 	dynamoPolicy := pulumi.All(
-		tables.Runners.Arn, tables.Registrations.Arn,
+		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
+		eventsArn := args[2].(string)
+		racesArn := args[3].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -77,14 +79,22 @@ func Setup(
 					"Action": []string{
 						"dynamodb:GetItem",
 						"dynamodb:PutItem",
+						"dynamodb:UpdateItem",
+						"dynamodb:DeleteItem",
 						"dynamodb:Query",
+						"dynamodb:Scan",
 						"dynamodb:ConditionCheckItem",
+						"dynamodb:BatchWriteItem",
 					},
 					"Resource": []string{
 						runnersArn,
 						runnersArn + "/index/*",
 						regsArn,
 						regsArn + "/index/*",
+						eventsArn,
+						eventsArn + "/index/*",
+						racesArn,
+						racesArn + "/index/*",
 					},
 				},
 			},
@@ -116,6 +126,8 @@ func Setup(
 			Variables: pulumi.StringMap{
 				"RUNNERS_TABLE_NAME":       tables.Runners.Name,
 				"REGISTRATIONS_TABLE_NAME": tables.Registrations.Name,
+				"EVENTS_TABLE_NAME":        tables.Events.Name,
+				"RACES_TABLE_NAME":         tables.Races.Name,
 			},
 		},
 	})

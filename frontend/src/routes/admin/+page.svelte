@@ -21,7 +21,9 @@
 	});
 
 	const pendingInvites = $derived(invites.filter((i) => !i.acceptedAt));
-	const finishedCount = $derived(dataStore.registrations.filter((r) => r.status === 'finished').length);
+	const finishedCount = $derived(
+		dataStore.registrations.filter((r) => r.status === 'finished').length
+	);
 </script>
 
 <section class="space-y-6">
@@ -36,17 +38,42 @@
 	</header>
 
 	<section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-		<StatCard icon={Users} label={i18n.m.admin.dashboard.runners} value={dataStore.runners.length} tone="primary" />
-		<StatCard icon={Calendar} label={i18n.m.admin.dashboard.events} value={dataStore.events.length} tone="secondary" />
-		<StatCard icon={Footprints} label={i18n.m.admin.dashboard.races} value={dataStore.races.length} tone="tertiary" />
-		<a href={resolve('/admin/results')} class="block rounded-2xl hover:-translate-y-0.5 transition-transform">
-			<StatCard icon={Trophy} label={i18n.m.admin.dashboard.results} value={finishedCount} tone="success" />
+		<StatCard
+			icon={Users}
+			label={i18n.m.admin.dashboard.runners}
+			value={dataStore.runners.length}
+			tone="primary"
+		/>
+		<StatCard
+			icon={Calendar}
+			label={i18n.m.admin.dashboard.events}
+			value={dataStore.events.length}
+			tone="secondary"
+		/>
+		<StatCard
+			icon={Footprints}
+			label={i18n.m.admin.dashboard.races}
+			value={dataStore.races.length}
+			tone="tertiary"
+		/>
+		<a
+			href={resolve('/admin/results')}
+			class="block rounded-2xl hover:-translate-y-0.5 transition-transform"
+		>
+			<StatCard
+				icon={Trophy}
+				label={i18n.m.admin.dashboard.results}
+				value={finishedCount}
+				tone="success"
+			/>
 		</a>
 		<StatCard
 			icon={UserCog}
 			label={i18n.m.admin.dashboard.users}
 			value={users.length}
-			sublabel={pendingInvites.length > 0 ? i18n.m.admin.dashboard.pendingInvites(pendingInvites.length) : undefined}
+			sublabel={pendingInvites.length > 0
+				? i18n.m.admin.dashboard.pendingInvites(pendingInvites.length)
+				: undefined}
 			tone="primary"
 		/>
 	</section>

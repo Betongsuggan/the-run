@@ -69,11 +69,15 @@
 		<PageHeader title={race.name} />
 
 		<p class="text-sm opacity-80 -mt-2">
-			{event?.name} · {event ? formatDate(event.date) : ''} · {formatRaceName(race)} · {formatDistance(race.distanceMeters)}
+			{event?.name} · {event ? formatDate(event.date) : ''} · {formatRaceName(race)} · {formatDistance(
+				race.distanceMeters
+			)}
 		</p>
 
 		<section class="card preset-filled-surface-50-950 border border-surface-200-800 p-4 space-y-3">
-			<h2 class="text-sm uppercase tracking-wide opacity-70">{i18n.m.admin.races.registerHeading}</h2>
+			<h2 class="text-sm uppercase tracking-wide opacity-70">
+				{i18n.m.admin.races.registerHeading}
+			</h2>
 			{#if availableRunners.length === 0}
 				<p class="text-sm opacity-70">{i18n.m.admin.races.noRunnersAvailable}</p>
 			{:else}
@@ -89,7 +93,9 @@
 						</select>
 					</label>
 					<label class="block space-y-1 w-32">
-						<span class="text-xs uppercase tracking-wide opacity-70">{i18n.m.admin.races.bibLabel}</span>
+						<span class="text-xs uppercase tracking-wide opacity-70"
+							>{i18n.m.admin.races.bibLabel}</span
+						>
 						<input type="text" bind:value={newBib} class="input" />
 					</label>
 					<button

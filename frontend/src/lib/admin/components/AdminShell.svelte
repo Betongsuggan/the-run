@@ -50,25 +50,37 @@
 					</a>
 				</li>
 				<li>
-					<a href={resolve('/admin/runners')} class={navClass(isActive(resolve('/admin/runners'), false))}>
+					<a
+						href={resolve('/admin/runners')}
+						class={navClass(isActive(resolve('/admin/runners'), false))}
+					>
 						<Users class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.runners}
 					</a>
 				</li>
 				<li>
-					<a href={resolve('/admin/events')} class={navClass(isActive(resolve('/admin/events'), false))}>
+					<a
+						href={resolve('/admin/events')}
+						class={navClass(isActive(resolve('/admin/events'), false))}
+					>
 						<Calendar class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.events}
 					</a>
 				</li>
 				<li>
-					<a href={resolve('/admin/results')} class={navClass(isActive(resolve('/admin/results'), false))}>
+					<a
+						href={resolve('/admin/results')}
+						class={navClass(isActive(resolve('/admin/results'), false))}
+					>
 						<Timer class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.results}
 					</a>
 				</li>
 				<li>
-					<a href={resolve('/admin/users')} class={navClass(isActive(resolve('/admin/users'), false))}>
+					<a
+						href={resolve('/admin/users')}
+						class={navClass(isActive(resolve('/admin/users'), false))}
+					>
 						<UserCog class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.users}
 					</a>

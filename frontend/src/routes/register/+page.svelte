@@ -45,9 +45,7 @@
 				return races.map((race) => ({ race, event }));
 			})
 		);
-		upcoming = lists
-			.flat()
-			.sort((a, b) => (a.event.date < b.event.date ? -1 : 1));
+		upcoming = lists.flat().sort((a, b) => (a.event.date < b.event.date ? -1 : 1));
 
 		const presetEventId = $page.url.searchParams.get('eventId');
 		if (presetEventId) {
@@ -178,7 +176,9 @@
 					<select required bind:value={raceId} class="select">
 						{#each upcoming as u (u.race.id)}
 							<option value={u.race.id}>
-								{u.event.name} · {u.race.name} ({formatRaceName(u.race)}) — {formatDate(u.event.date)}
+								{u.event.name} · {u.race.name} ({formatRaceName(u.race)}) — {formatDate(
+									u.event.date
+								)}
 							</option>
 						{/each}
 					</select>
@@ -195,7 +195,8 @@
 
 				{#if errorMsg}
 					<p class="text-sm text-error-600 dark:text-error-300">
-						{i18n.m.register.errorPrefix} {errorMsg}
+						{i18n.m.register.errorPrefix}
+						{errorMsg}
 					</p>
 				{/if}
 

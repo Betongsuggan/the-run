@@ -1,10 +1,15 @@
 import { browser } from '$app/environment';
+import { api } from '$lib/http';
 import { auth, type AdminUser } from '$lib/admin/auth.svelte';
 import { dataStore, type RegistrationUpdate } from '$lib/store/data.svelte';
 import type { Race, RaceEvent, Registration, Runner } from '$lib/types';
 
-// ─── Mock backend store for users + invites ─────────────────────────────
-// Persists alongside the data store. Real backend replaces this.
+// ─── Auth — STILL MOCKED ────────────────────────────────────────────────
+// TODO: backend auth. The login/invite/users surface persists in localStorage
+// until we wire Cognito (or custom email+password) + JWT verification on the
+// API. See plan: "Open / deferred — Auth" in the i-would-like-to-fluttering
+// plan file. Admin write endpoints below ARE the real backend, but they are
+// currently unauthenticated — do not expose this to the public internet.
 
 const USERS_KEY = 'the-run.admin-users';
 const INVITES_KEY = 'the-run.admin-invites';
@@ -19,7 +24,7 @@ export type AdminInvite = {
 	acceptedAt?: string;
 };
 
-type Passwords = Record<string, string>; // email → password (mock only — backend hashes)
+type Passwords = Record<string, string>;
 
 const SEED_ADMIN_EMAIL = 'admin@ingmarsoloppet.se';
 const SEED_ADMIN_PASSWORD = 'changeme';
@@ -91,8 +96,6 @@ function delay(ms = 120): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─── Auth ───────────────────────────────────────────────────────────────
-
 export async function login(email: string, password: string): Promise<AdminUser> {
 	await delay();
 	const users = readUsers();
@@ -130,10 +133,7 @@ export async function inviteUser(email: string): Promise<AdminInvite> {
 		createdByEmail: auth.user.email
 	};
 	writeInvites([...invites, invite]);
-	// Real backend would email a link here. Surface to the UI instead.
-	console.info(
-		`[mock] invite link for ${invite.email}: /admin/accept?token=${invite.token}`
-	);
+	console.info(`[mock] invite link for ${invite.email}: /admin/accept?token=${invite.token}`);
 	return invite;
 }
 
@@ -196,62 +196,80 @@ export async function acceptInvite({ token, password }: AcceptInviteInput): Prom
 	return user;
 }
 
+export const MOCK_SEED_ADMIN = {
+	email: SEED_ADMIN_EMAIL,
+	password: SEED_ADMIN_PASSWORD
+};
+
 // ─── Runners CRUD ───────────────────────────────────────────────────────
 
 export async function adminCreateRunner(input: Omit<Runner, 'id'>): Promise<Runner> {
-	await delay();
-	return dataStore.upsertRunner(input);
+	const res = await api<Runner>('/runners', { method: 'POST', body: input });
+	dataStore.upsertRunner(res);
+	return res;
 }
 
 export async function adminUpdateRunner(runner: Runner): Promise<Runner> {
-	await delay();
-	return dataStore.upsertRunner(runner);
+	const { id, ...body } = runner;
+	const res = await api<Runner>(`/runners/${encodeURIComponent(id)}`, { method: 'PUT', body });
+	dataStore.upsertRunner(res);
+	return res;
 }
 
 export async function adminDeleteRunner(id: string): Promise<void> {
-	await delay();
-	dataStore.deleteRunner(id);
+	await api<void>(`/runners/${encodeURIComponent(id)}`, { method: 'DELETE' });
+	dataStore.removeRunner(id);
 }
 
 // ─── Events CRUD ────────────────────────────────────────────────────────
 
 export async function adminCreateEvent(input: Omit<RaceEvent, 'id'>): Promise<RaceEvent> {
-	await delay();
-	return dataStore.upsertEvent(input);
+	const res = await api<RaceEvent>('/events', { method: 'POST', body: input });
+	dataStore.upsertEvent(res);
+	return res;
 }
 
 export async function adminUpdateEvent(event: RaceEvent): Promise<RaceEvent> {
-	await delay();
-	return dataStore.upsertEvent(event);
+	const { id, ...body } = event;
+	const res = await api<RaceEvent>(`/events/${encodeURIComponent(id)}`, { method: 'PUT', body });
+	dataStore.upsertEvent(res);
+	return res;
 }
 
 export async function adminDeleteEvent(id: string): Promise<void> {
-	await delay();
-	dataStore.deleteEvent(id);
+	await api<void>(`/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
+	dataStore.removeEvent(id);
 }
 
 // ─── Races CRUD ─────────────────────────────────────────────────────────
 
 export async function adminCreateRace(input: Omit<Race, 'id'>): Promise<Race> {
-	await delay();
-	return dataStore.upsertRace(input);
+	const res = await api<Race>('/races', { method: 'POST', body: input });
+	dataStore.upsertRace(res);
+	return res;
 }
 
 export async function adminUpdateRace(race: Race): Promise<Race> {
-	await delay();
-	return dataStore.upsertRace(race);
+	const { id, ...body } = race;
+	const res = await api<Race>(`/races/${encodeURIComponent(id)}`, { method: 'PUT', body });
+	dataStore.upsertRace(res);
+	return res;
 }
 
 export async function adminDeleteRace(id: string): Promise<void> {
-	await delay();
-	dataStore.deleteRace(id);
+	await api<void>(`/races/${encodeURIComponent(id)}`, { method: 'DELETE' });
+	dataStore.removeRace(id);
 }
 
 // ─── Registrations + bulk results ───────────────────────────────────────
 
 export async function adminListRegistrationsForRace(raceId: string): Promise<Registration[]> {
-	await delay(20);
-	return dataStore.registrations.filter((r) => r.raceId === raceId).map((r) => ({ ...r }));
+	const res = await api<{ registrations: Registration[] }>(
+		`/races/${encodeURIComponent(raceId)}/registrations`
+	);
+	const list = res.registrations ?? [];
+	dataStore.upsertRegistrations(list);
+	return list;
 }
 
 export type CreateRegistrationInput = {
@@ -261,51 +279,49 @@ export type CreateRegistrationInput = {
 	category?: Registration['category'];
 };
 
-export async function adminCreateRegistration(input: CreateRegistrationInput): Promise<Registration> {
-	await delay();
-	const existing = dataStore.registrations.find(
-		(r) => r.raceId === input.raceId && r.runnerId === input.runnerId
-	);
-	if (existing) throw new Error('This runner is already registered for this race.');
-	const runner = dataStore.runners.find((r) => r.id === input.runnerId);
-	if (!runner) throw new Error('Runner not found.');
-	const category = input.category ?? { gender: runner.gender };
-	return dataStore.upsertRegistration({
-		raceId: input.raceId,
-		runnerId: input.runnerId,
-		bib: input.bib?.trim() || undefined,
-		category,
-		status: 'pending'
-	});
+export async function adminCreateRegistration(
+	input: CreateRegistrationInput
+): Promise<Registration> {
+	const res = await api<Registration>('/registrations/admin', { method: 'POST', body: input });
+	dataStore.upsertRegistration(res);
+	return res;
 }
 
-export async function adminDeleteRegistration(id: string): Promise<void> {
-	await delay();
-	dataStore.deleteRegistration(id);
+export async function adminDeleteRegistration(raceId: string, runnerId: string): Promise<void> {
+	await api<void>(
+		`/races/${encodeURIComponent(raceId)}/registrations/${encodeURIComponent(runnerId)}`,
+		{ method: 'DELETE' }
+	);
+	dataStore.removeRegistration(raceId, runnerId);
+}
+
+// Maps the frontend's "finishSeconds: null clears it" convention onto the
+// backend's explicit `clearFinish` flag.
+function toUpdatePayload(u: RegistrationUpdate) {
+	const body: Record<string, unknown> = {
+		raceId: u.raceId,
+		runnerId: u.runnerId
+	};
+	if (u.status !== undefined) body.status = u.status;
+	if (u.bib !== undefined) body.bib = u.bib;
+	if (u.category !== undefined) body.category = u.category;
+	if (u.conditions !== undefined) body.conditions = u.conditions;
+	if (u.notes !== undefined) body.notes = u.notes;
+	if (u.splits !== undefined) body.splits = u.splits;
+	if (u.finishSeconds === null) body.clearFinish = true;
+	else if (u.finishSeconds !== undefined) body.finishSeconds = u.finishSeconds;
+	return body;
 }
 
 export async function adminBulkUpdateRegistrations(
 	updates: RegistrationUpdate[]
 ): Promise<Registration[]> {
-	await delay();
-	const normalized: RegistrationUpdate[] = updates.map((u) => {
-		const status = u.status;
-		if (status === 'finished') {
-			if (u.finishSeconds === null || u.finishSeconds === undefined) {
-				throw new Error('A finished registration requires a finish time.');
-			}
-			return u;
-		}
-		if (status === 'dnf' || status === 'dns' || status === 'pending') {
-			return { ...u, finishSeconds: null };
-		}
-		return u;
+	if (updates.length === 0) return [];
+	const res = await api<{ registrations: Registration[] }>('/registrations/bulk', {
+		method: 'PATCH',
+		body: { updates: updates.map(toUpdatePayload) }
 	});
-	return dataStore.bulkUpdateRegistrations(normalized);
+	const list = res.registrations ?? [];
+	dataStore.upsertRegistrations(list);
+	return list;
 }
-
-// Exposed so the UI can hint at the seed account in mock mode.
-export const MOCK_SEED_ADMIN = {
-	email: SEED_ADMIN_EMAIL,
-	password: SEED_ADMIN_PASSWORD
-};

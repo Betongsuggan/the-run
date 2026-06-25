@@ -30,7 +30,9 @@
 			aria-label={title}
 			class="relative z-10 w-full max-w-xl card preset-filled-surface-50-950 border border-surface-200-800 shadow-xl"
 		>
-			<header class="flex items-center justify-between gap-3 border-b border-surface-200-800 px-5 py-3">
+			<header
+				class="flex items-center justify-between gap-3 border-b border-surface-200-800 px-5 py-3"
+			>
 				<h2 class="text-lg font-semibold" style="font-family: var(--heading-font-family);">
 					{title}
 				</h2>

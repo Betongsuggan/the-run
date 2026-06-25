@@ -18,7 +18,10 @@
 	<div class="h-1.5 w-full {stripe}" aria-hidden="true"></div>
 	<div class="p-5 flex items-start gap-4">
 		<div class="flex-1 min-w-0">
-			<div class="font-heading text-lg font-semibold leading-snug" style="font-family: var(--heading-font-family);">
+			<div
+				class="font-heading text-lg font-semibold leading-snug"
+				style="font-family: var(--heading-font-family);"
+			>
 				{event.name}
 			</div>
 			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm opacity-80 mt-2">

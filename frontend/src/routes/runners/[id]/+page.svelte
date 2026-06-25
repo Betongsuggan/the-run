@@ -93,7 +93,8 @@
 						{runner.name}
 					</h1>
 					<div class="text-sm opacity-75 mt-1">
-						{runner.gender}{#if runner.birthYear} · {i18n.m.runner.bornIn(runner.birthYear)}{/if}
+						{runner.gender}{#if runner.birthYear}
+							· {i18n.m.runner.bornIn(runner.birthYear)}{/if}
 					</div>
 				</div>
 			</div>
@@ -105,10 +106,7 @@
 			<div class="card preset-filled-surface-50-950 border border-surface-200-800 p-5">
 				<div class="flex items-center gap-2 mb-3">
 					<Activity class="size-4 text-primary-600 dark:text-primary-300" />
-					<h3
-						class="text-base font-semibold"
-						style="font-family: var(--heading-font-family);"
-					>
+					<h3 class="text-base font-semibold" style="font-family: var(--heading-font-family);">
 						{i18n.m.runner.paceOverTime}
 					</h3>
 				</div>
@@ -117,10 +115,7 @@
 			<div class="card preset-filled-surface-50-950 border border-surface-200-800 p-5">
 				<div class="flex items-center gap-2 mb-3">
 					<Route class="size-4 text-success-600 dark:text-success-300" />
-					<h3
-						class="text-base font-semibold"
-						style="font-family: var(--heading-font-family);"
-					>
+					<h3 class="text-base font-semibold" style="font-family: var(--heading-font-family);">
 						{i18n.m.runner.distanceDistribution}
 					</h3>
 				</div>

@@ -94,7 +94,7 @@
 
 	async function onRemove(row: Row) {
 		if (!confirm(i18n.m.admin.races.confirmRemoveRegistration)) return;
-		await adminDeleteRegistration(row.id);
+		await adminDeleteRegistration(raceId, row.runnerId);
 		await refresh();
 		onChange?.();
 	}
@@ -111,9 +111,10 @@
 			if (row.status === 'finished') {
 				const parsed = parseFinishTime(row.finishStr);
 				if (parsed === null) {
-					row.rowError = row.finishStr.trim() === ''
-						? i18n.m.admin.races.mustHaveFinishTime
-						: i18n.m.admin.races.invalidTime;
+					row.rowError =
+						row.finishStr.trim() === ''
+							? i18n.m.admin.races.mustHaveFinishTime
+							: i18n.m.admin.races.invalidTime;
 					anyRowError = true;
 					continue;
 				}
@@ -121,7 +122,13 @@
 			} else {
 				finishSeconds = null;
 			}
-			updates.push({ id: row.id, status: row.status, finishSeconds, bib: row.bib });
+			updates.push({
+				raceId,
+				runnerId: row.runnerId,
+				status: row.status,
+				finishSeconds,
+				bib: row.bib
+			});
 		}
 
 		if (anyRowError) {

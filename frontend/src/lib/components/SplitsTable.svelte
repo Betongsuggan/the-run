@@ -54,7 +54,9 @@
 								></div>
 							</div>
 							{#if isFastest}
-								<div class="text-[10px] uppercase tracking-wide text-success-700 dark:text-success-300 mt-0.5">
+								<div
+									class="text-[10px] uppercase tracking-wide text-success-700 dark:text-success-300 mt-0.5"
+								>
 									{i18n.m.result.fastestKmLabel}
 								</div>
 							{/if}

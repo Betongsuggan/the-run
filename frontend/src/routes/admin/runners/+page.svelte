@@ -95,9 +95,7 @@
 	const availableRacesForRegister = $derived.by(() => {
 		if (!registerFor) return [];
 		const taken = new Set(
-			dataStore.registrations
-				.filter((r) => r.runnerId === registerFor!.id)
-				.map((r) => r.raceId)
+			dataStore.registrations.filter((r) => r.runnerId === registerFor!.id).map((r) => r.raceId)
 		);
 		return dataStore.races.filter((r) => !taken.has(r.id));
 	});
@@ -131,7 +129,11 @@
 <section class="space-y-6">
 	<PageHeader title={i18n.m.admin.runners.heading}>
 		{#snippet action()}
-			<button type="button" class="btn preset-filled-primary-500 inline-flex items-center gap-2" onclick={openCreate}>
+			<button
+				type="button"
+				class="btn preset-filled-primary-500 inline-flex items-center gap-2"
+				onclick={openCreate}
+			>
 				<Plus class="size-4" />
 				{i18n.m.admin.runners.add}
 			</button>

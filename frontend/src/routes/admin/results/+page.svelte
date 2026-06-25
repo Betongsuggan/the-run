@@ -43,7 +43,9 @@
 
 	<div class="flex flex-wrap items-end gap-3">
 		<label class="block space-y-1 w-40">
-			<span class="text-xs uppercase tracking-wide opacity-70">{i18n.m.admin.results.yearLabel}</span>
+			<span class="text-xs uppercase tracking-wide opacity-70"
+				>{i18n.m.admin.results.yearLabel}</span
+			>
 			<select bind:value={selectedYear} class="select">
 				{#each years as y (y)}
 					<option value={y}>{y}</option>
@@ -51,7 +53,9 @@
 			</select>
 		</label>
 		<label class="block space-y-1 min-w-[18rem] flex-1">
-			<span class="text-xs uppercase tracking-wide opacity-70">{i18n.m.admin.results.raceLabel}</span>
+			<span class="text-xs uppercase tracking-wide opacity-70"
+				>{i18n.m.admin.results.raceLabel}</span
+			>
 			<select bind:value={selectedRaceId} class="select" disabled={racesForYear.length === 0}>
 				{#each racesForYear as r (r.id)}
 					<option value={r.id}>{r.name} — {formatRaceName(r)}</option>

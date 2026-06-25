@@ -55,10 +55,7 @@
 				{i18n.m.landing.heroTagline}
 			</p>
 			<div class="mt-6 flex flex-wrap gap-3">
-				<a
-					href="#events"
-					class="btn preset-filled-primary-500 inline-flex items-center gap-2"
-				>
+				<a href="#events" class="btn preset-filled-primary-500 inline-flex items-center gap-2">
 					<Calendar class="size-4" />
 					{i18n.m.landing.ctaEvents}
 				</a>

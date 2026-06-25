@@ -175,7 +175,9 @@
 				<h2 class="text-sm uppercase tracking-wide opacity-70">
 					{i18n.m.admin.users.pendingHeading}
 				</h2>
-				<div class="card preset-filled-surface-50-950 border border-surface-200-800 overflow-hidden">
+				<div
+					class="card preset-filled-surface-50-950 border border-surface-200-800 overflow-hidden"
+				>
 					<div class="table-wrap">
 						<table class="table">
 							<thead>

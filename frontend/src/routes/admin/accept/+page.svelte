@@ -32,9 +32,7 @@
 </script>
 
 <div class="mx-auto max-w-md py-12">
-	<div
-		class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 sm:p-8 space-y-5"
-	>
+	<div class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 sm:p-8 space-y-5">
 		<header class="space-y-1">
 			<div class="flex items-center gap-2 text-primary-600 dark:text-primary-300">
 				<MailCheck class="size-5" />

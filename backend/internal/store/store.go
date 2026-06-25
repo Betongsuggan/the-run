@@ -14,11 +14,64 @@ import (
 // given race. The API layer maps this to HTTP 409.
 var ErrAlreadyRegistered = errors.New("runner already registered for this race")
 
+// ErrNotFound is returned by Get/Update/Delete when the item does not exist.
+// API layer maps this to HTTP 404.
+var ErrNotFound = errors.New("not found")
+
+// ErrAlreadyExists is returned when a uniqueness constraint is violated on
+// create (e.g. duplicate runner name+DOB). API layer maps this to HTTP 409.
+var ErrAlreadyExists = errors.New("already exists")
+
+// RegistrationUpdate carries the optional fields a bulk/single update can
+// modify. nil fields are left unchanged; pointer-typed numeric fields use
+// the zero pointer to mean "clear", as DynamoDB UpdateItem REMOVE.
+type RegistrationUpdate struct {
+	RaceID        string
+	RunnerID      string
+	Status        *string
+	Bib           *string
+	Category      *models.Category
+	FinishSeconds *int
+	ClearFinish   bool
+	Splits        []models.Split
+	ClearSplits   bool
+	Conditions    *string
+	Notes         *string
+}
+
 type Store interface {
-	// RunnerByNameDOB returns the matching runner, or (nil, nil) on miss.
+	// Runners
 	RunnerByNameDOB(ctx context.Context, nameDobKey string) (*models.Runner, error)
+	ListRunners(ctx context.Context) ([]models.Runner, error)
+	GetRunner(ctx context.Context, id string) (*models.Runner, error)
 	CreateRunner(ctx context.Context, r models.Runner) error
+	UpdateRunner(ctx context.Context, r models.Runner) error
+	DeleteRunner(ctx context.Context, id string) error
+
+	// Events
+	ListEvents(ctx context.Context) ([]models.Event, error)
+	GetEvent(ctx context.Context, id string) (*models.Event, error)
+	CreateEvent(ctx context.Context, e models.Event) error
+	UpdateEvent(ctx context.Context, e models.Event) error
+	DeleteEvent(ctx context.Context, id string) error
+
+	// Races
+	ListRaces(ctx context.Context) ([]models.Race, error)
+	ListRacesByEvent(ctx context.Context, eventID string) ([]models.Race, error)
+	GetRace(ctx context.Context, id string) (*models.Race, error)
+	CreateRace(ctx context.Context, r models.Race) error
+	UpdateRace(ctx context.Context, r models.Race) error
+	DeleteRace(ctx context.Context, id string) error
+
+	// Registrations
 	// CreateRegistration returns ErrAlreadyRegistered if the same
 	// (RaceID, RunnerID) pair already exists.
 	CreateRegistration(ctx context.Context, reg models.Registration) error
+	ListRegistrations(ctx context.Context) ([]models.Registration, error)
+	ListRegistrationsByRace(ctx context.Context, raceID string) ([]models.Registration, error)
+	ListRegistrationsByRunner(ctx context.Context, runnerID string) ([]models.Registration, error)
+	GetRegistration(ctx context.Context, raceID, runnerID string) (*models.Registration, error)
+	GetRegistrationByID(ctx context.Context, id string) (*models.Registration, error)
+	UpdateRegistration(ctx context.Context, u RegistrationUpdate) (*models.Registration, error)
+	DeleteRegistration(ctx context.Context, raceID, runnerID string) error
 }
