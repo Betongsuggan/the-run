@@ -123,13 +123,23 @@ dev-backend:
 # Create the first admin account directly in DynamoDB (skips the auth-protected
 # API). Use after a fresh deploy or to bootstrap a new environment.
 # Usage:
-#   just create-admin email=you@example.com password='at least 12 chars'
-# Add force=1 to rotate the password of an existing account.
+#   just create-admin you@example.com 'at least 12 chars'
+# Add a third arg (any non-empty value) to rotate the password of an existing
+# account: `just create-admin you@example.com 'newpass' force`.
 create-admin email='' password='' force='':
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -z "{{email}}" ] || [ -z "{{password}}" ]; then
-      echo "usage: just create-admin email=... password=..." >&2
+    # `just` passes recipe args positionally — `name=value` tokens come through
+    # as literal strings. Strip the legacy `email=`/`password=`/`force=` prefixes
+    # so old invocations don't silently corrupt the stored email.
+    EMAIL="{{email}}"
+    PASSWORD="{{password}}"
+    FORCE="{{force}}"
+    EMAIL="${EMAIL#email=}"
+    PASSWORD="${PASSWORD#password=}"
+    FORCE="${FORCE#force=}"
+    if [ -z "$EMAIL" ] || [ -z "$PASSWORD" ]; then
+      echo "usage: just create-admin EMAIL PASSWORD [force]" >&2
       exit 2
     fi
     cd backend
@@ -143,10 +153,10 @@ create-admin email='' password='' force='':
     : "${ACCOUNTS_TABLE_NAME:=the-run-accounts}"
     : "${AUTH_ATTEMPTS_TABLE_NAME:=the-run-auth-attempts}"
     export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME
-    if [ -n "{{force}}" ]; then
-      go run ./cmd/admin -email "{{email}}" -password "{{password}}" -force
+    if [ -n "$FORCE" ]; then
+      go run ./cmd/admin -email "$EMAIL" -password "$PASSWORD" -force
     else
-      go run ./cmd/admin -email "{{email}}" -password "{{password}}"
+      go run ./cmd/admin -email "$EMAIL" -password "$PASSWORD"
     fi
 
 # Wipe all the-run-* tables in LocalStack and re-create them via Pulumi. Use
@@ -307,29 +317,55 @@ check: lint format-check typecheck test
 
 # ─── Deploy ───────────────────────────────────────────────────────────
 
+# Idempotent Pulumi pre-flight: makes sure we're logged in to the right S3
+# state backend and that the requested stack is selected. Runs automatically
+# as a dependency of deploy / deploy-preview / verify / invalidate so a fresh
+# shell only needs `just sso-login` before `just deploy`.
+pulumi-ready stack='dev' region='eu-north-1':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Fast SSO probe so we fail with a clear message instead of leaking an
+    # ExpiredToken error from deep inside `pulumi login`.
+    if ! ACCT=$(aws sts get-caller-identity --profile "$AWS_PROFILE" --query Account --output text 2>/dev/null); then
+      echo "AWS credentials for profile '$AWS_PROFILE' are missing or expired." >&2
+      echo "Run: just sso-login" >&2
+      exit 1
+    fi
+    # Re-export creds unconditionally — stale env vars from a previous SSO
+    # session would otherwise leak through into Pulumi's S3 client.
+    eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+    BACKEND="s3://the-run-pulumi-state-$ACCT?region={{region}}"
+    # `pulumi login` is idempotent — switches backends if needed, no-op otherwise.
+    pulumi login "$BACKEND" >/dev/null
+    # `stack select` errors if the stack doesn't exist (means bootstrap is needed).
+    if ! pulumi -C infra stack select "{{stack}}" >/dev/null 2>&1; then
+      echo "Pulumi stack '{{stack}}' not found. Run: just bootstrap-pulumi-state {{stack}}" >&2
+      exit 1
+    fi
+
 # Build everything and apply the Pulumi stack
-deploy: build
+deploy: pulumi-ready build
     #!/usr/bin/env bash
     set -euo pipefail
     eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     pulumi -C infra up
 
 # Build everything and show the Pulumi diff (no apply)
-deploy-preview: build
+deploy-preview: pulumi-ready build
     #!/usr/bin/env bash
     set -euo pipefail
     eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     pulumi -C infra preview
 
 # Invalidate the entire CloudFront distribution
-invalidate:
+invalidate: pulumi-ready
     #!/usr/bin/env bash
     set -euo pipefail
     eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
     aws cloudfront create-invalidation --distribution-id "$(pulumi -C infra stack output cloudFrontDistributionId)" --paths '/*'
 
 # Curl the deployed API and print the URLs
-verify:
+verify: pulumi-ready
     #!/usr/bin/env bash
     set -euo pipefail
     eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"

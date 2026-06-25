@@ -102,7 +102,7 @@ func runAWS(ctx *pulumi.Context, cfg *config.Config) error {
 		return err
 	}
 
-	be, err := backend.Setup(ctx, apiFQDN, siteFQDN, zoneID, tables)
+	be, err := backend.Setup(ctx, apiFQDN, siteFQDN, domain, zoneID, tables)
 	if err != nil {
 		return err
 	}

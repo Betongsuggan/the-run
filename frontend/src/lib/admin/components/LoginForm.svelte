@@ -1,6 +1,7 @@
 <script lang="ts">
 	import LogIn from '@lucide/svelte/icons/log-in';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
+	import QRCode from 'qrcode';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { auth } from '$lib/admin/auth.svelte';
 
@@ -9,6 +10,22 @@
 	let code = $state('');
 	let submitting = $state(false);
 	let errorMsg = $state<string | null>(null);
+	let qrSvg = $state<string | null>(null);
+
+	$effect(() => {
+		const uri = auth.enroll?.otpauthUri;
+		if (!uri) {
+			qrSvg = null;
+			return;
+		}
+		QRCode.toString(uri, { type: 'svg', margin: 1, width: 200, errorCorrectionLevel: 'M' })
+			.then((svg) => {
+				qrSvg = svg;
+			})
+			.catch(() => {
+				qrSvg = null;
+			});
+	});
 
 	async function onPasswordSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -100,11 +117,11 @@
 			{#if auth.step === 'totp_enroll' && auth.enroll}
 				<div class="space-y-3 text-sm">
 					<p>{i18n.m.admin.login.enrollInstructions}</p>
-					<code
-						class="block break-all rounded-md bg-surface-200-800 px-3 py-2 text-xs font-mono opacity-90"
-					>
-						{auth.enroll.otpauthUri}
-					</code>
+					{#if qrSvg}
+						<div class="flex justify-center rounded-md bg-white p-3">
+							{@html qrSvg}
+						</div>
+					{/if}
 					<p class="opacity-80">
 						{i18n.m.admin.login.enrollSecretLabel}
 						<code class="font-mono">{auth.enroll.secret}</code>

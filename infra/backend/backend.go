@@ -30,7 +30,7 @@ type Resources struct {
 // secret ARN via environment variables.
 func Setup(
 	ctx *pulumi.Context,
-	apiFQDN, siteFQDN string,
+	apiFQDN, siteFQDN, cookieDomain string,
 	zoneID pulumi.StringInput,
 	tables *database.Tables,
 ) (*Resources, error) {
@@ -198,7 +198,7 @@ func Setup(
 				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
 				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
 				"JWT_SECRET_ARN":           jwtSecret.Arn,
-				"COOKIE_DOMAIN":            pulumi.String("." + siteFQDN), // share session across api.x and x
+				"COOKIE_DOMAIN":            pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
 				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
 			},
 		},
