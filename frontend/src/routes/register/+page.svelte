@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { resolve } from '$app/paths';
+	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import ClipboardPlus from '@lucide/svelte/icons/clipboard-plus';
 	import Shield from '@lucide/svelte/icons/shield';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
@@ -11,6 +12,7 @@
 	import { formatDate, formatRaceName } from '$lib/format';
 	import Hero from '$lib/components/Hero.svelte';
 	import SectionHeader from '$lib/components/SectionHeader.svelte';
+	import Turnstile from '$lib/components/Turnstile.svelte';
 
 	type UpcomingRace = { race: Race; event: RaceEvent };
 
@@ -26,9 +28,12 @@
 	// false (opt-in). The backend stamps the policy version + timestamp.
 	let publicResults = $state(true);
 	let marketing = $state(false);
+	// Cloudflare Turnstile token; empty when the widget hasn't issued one yet
+	// or the site key isn't configured (local dev). Backend mirrors the skip
+	// behavior server-side when its own secret is unset.
+	let turnstileToken = $state('');
 	// Honeypot — kept empty by real users; bots tend to fill every field.
-	// TODO: layer on a real captcha (Cloudflare Turnstile or hCaptcha) before
-	// launch — see PROJECT_PLAN.md.
+	// Defence-in-depth alongside Turnstile.
 	let website = $state('');
 
 	let submitting = $state(false);
@@ -77,6 +82,7 @@
 				raceId,
 				publicResults,
 				marketing,
+				turnstileToken,
 				website
 			});
 			success = true;
@@ -95,6 +101,7 @@
 		gender = 'M';
 		publicResults = true;
 		marketing = false;
+		turnstileToken = '';
 		errorMsg = null;
 	}
 </script>
@@ -227,6 +234,12 @@
 					</label>
 				</div>
 
+				{#if PUBLIC_TURNSTILE_SITE_KEY}
+					<div class="pt-1">
+						<Turnstile siteKey={PUBLIC_TURNSTILE_SITE_KEY} onToken={(t) => (turnstileToken = t)} />
+					</div>
+				{/if}
+
 				<!-- Honeypot: hidden from sighted users + assistive tech. Bots that
 				     fill every input will set this; the backend silently drops them. -->
 				<div aria-hidden="true" class="absolute -left-[10000px] top-auto h-px w-px overflow-hidden">
@@ -248,7 +261,11 @@
 						<Shield class="size-3.5" />
 						{i18n.m.register.botProtectionNote}
 					</span>
-					<button type="submit" disabled={submitting} class="btn preset-filled-primary-500">
+					<button
+						type="submit"
+						disabled={submitting || (PUBLIC_TURNSTILE_SITE_KEY !== '' && turnstileToken === '')}
+						class="btn preset-filled-primary-500"
+					>
 						{submitting ? i18n.m.register.submitting : i18n.m.register.submit}
 					</button>
 				</div>

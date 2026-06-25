@@ -188,6 +188,39 @@ dev-frontend:
 seed-dev api='http://localhost:8080':
     cd backend && API_BASE_URL={{api}} go run ./cmd/seed
 
+# Fire N concurrent POSTs at /registrations and print the status-code histogram.
+# The payload trips the honeypot, so no rows are ever written — this isolates
+# the test to the API Gateway throttle layer (GDPR A0.7: burst=5, sustained=2/s
+# on POST /registrations). Against the deployed API you should see mostly 429s
+# above the burst; against `just dev-backend` everything returns 201 because
+# local dev has no gateway throttle.
+# Usage:
+#   just test-register-rate-limit                            # hits api.rydback.net
+#   just test-register-rate-limit url=http://localhost:8080  # hits local dev
+#   just test-register-rate-limit count=50
+test-register-rate-limit url='https://api.rydback.net' count='30':
+    #!/usr/bin/env bash
+    set -uo pipefail
+    # `just` passes recipe args positionally; strip the legacy `name=`
+    # prefixes so both `just ... url=foo` and `just ... foo` work.
+    URL_ARG="{{url}}"
+    COUNT_ARG="{{count}}"
+    URL_ARG="${URL_ARG#url=}"
+    COUNT_ARG="${COUNT_ARG#count=}"
+    URL="${URL_ARG}/registrations"
+    echo "Firing $COUNT_ARG concurrent POSTs at $URL ..."
+    # website=trap is the honeypot — any request that reaches the Lambda is
+    # silently dropped with 200, so this never writes to DynamoDB regardless
+    # of which environment we point at.
+    PAYLOAD='{"name":"Flood","email":"flood@example.com","dateOfBirth":"1990-01-01","gender":"M","raceId":"flood","publicResults":false,"marketing":false,"website":"trap"}'
+    seq 1 "$COUNT_ARG" | xargs -P"$COUNT_ARG" -I{} \
+      curl -s -o /dev/null -w "%{http_code}\n" \
+        -X POST "$URL" \
+        -H 'Content-Type: application/json' \
+        --data-raw "$PAYLOAD" \
+      | sort | uniq -c | sort -rn
+    echo "Done. 429 = throttled by API Gateway; 200/201 = honeypot accepted; other = unexpected."
+
 # ─── LocalStack ────────────────────────────────────────────────────────
 
 # Pulumi backend URL used by the `local` stack. File-backed so we never need

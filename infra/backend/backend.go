@@ -70,6 +70,30 @@ func Setup(
 		return nil, err
 	}
 
+	// Cloudflare Turnstile secret key. Stored encrypted; rotation = set a new
+	// SecretVersion out-of-band (e.g. `aws secretsmanager put-secret-value`).
+	// Initial value is a placeholder so `pulumi up` works before a Cloudflare
+	// account exists — the Lambda's LoadConfig logs a warning and skips
+	// verification until a real key lands. Update via:
+	//   aws secretsmanager put-secret-value \
+	//     --secret-id the-run/turnstile-secret-key \
+	//     --secret-string '<key-from-cloudflare>'
+	turnstileSecret, err := secretsmanager.NewSecret(ctx, "turnstile-secret", &secretsmanager.SecretArgs{
+		Name:        pulumi.String("the-run/turnstile-secret-key"),
+		Description: pulumi.String("Cloudflare Turnstile secret key for /registrations bot challenge"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = secretsmanager.NewSecretVersion(ctx, "turnstile-secret-version", &secretsmanager.SecretVersionArgs{
+		SecretId:     turnstileSecret.ID(),
+		SecretString: pulumi.String("placeholder-set-via-put-secret-value"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	assumePolicy, err := json.Marshal(map[string]any{
 		"Version": "2012-10-17",
 		"Statement": []any{
@@ -156,14 +180,16 @@ func Setup(
 		return nil, err
 	}
 
-	secretsPolicy := jwtSecret.Arn.ApplyT(func(arn string) (string, error) {
+	secretsPolicy := pulumi.All(jwtSecret.Arn, turnstileSecret.Arn).ApplyT(func(args []any) (string, error) {
+		jwtArn := args[0].(string)
+		turnstileArn := args[1].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
 				map[string]any{
 					"Effect":   "Allow",
 					"Action":   []string{"secretsmanager:GetSecretValue"},
-					"Resource": arn,
+					"Resource": []string{jwtArn, turnstileArn},
 				},
 			},
 		})
@@ -214,6 +240,7 @@ func Setup(
 				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
 				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
 				"JWT_SECRET_ARN":           jwtSecret.Arn,
+				"TURNSTILE_SECRET_ARN":     turnstileSecret.Arn,
 				"COOKIE_DOMAIN":            pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
 				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
 			},
@@ -273,11 +300,38 @@ func Setup(
 		return nil, err
 	}
 
+	// Explicit POST /registrations route so the stage's per-route throttle
+	// (below) has something to bind to. More-specific routes win over the
+	// `ANY /{proxy+}` catch-all, so this just adds a routing entry; traffic
+	// still flows to the same Lambda integration.
+	registrationsRoute, err := apigatewayv2.NewRoute(ctx, "api-route-registrations", &apigatewayv2.RouteArgs{
+		ApiId:    api.ID(),
+		RouteKey: pulumi.String("POST /registrations"),
+		Target:   pulumi.Sprintf("integrations/%s", integration.ID()),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	stage, err := apigatewayv2.NewStage(ctx, "api-stage", &apigatewayv2.StageArgs{
 		ApiId:      api.ID(),
 		Name:       pulumi.String("$default"),
 		AutoDeploy: pulumi.Bool(true),
-	})
+		// Per-route throttling on POST /registrations (GDPR A0.7) — bounds
+		// damage from a token-replay or token-farmed flood that gets past
+		// Turnstile. Numbers are deliberately conservative: a 500-runner
+		// race rarely exceeds ~0.05 req/s in steady state, so 2 sustained
+		// + 5 burst leaves >40× headroom for the legitimate sign-up peak
+		// while still rejecting a hostile flood. HTTP API throttling is
+		// global across all clients (per-IP needs WAF — see A2).
+		RouteSettings: apigatewayv2.StageRouteSettingArray{
+			&apigatewayv2.StageRouteSettingArgs{
+				RouteKey:             pulumi.String("POST /registrations"),
+				ThrottlingBurstLimit: pulumi.Int(5),
+				ThrottlingRateLimit:  pulumi.Float64(2),
+			},
+		},
+	}, pulumi.DependsOn([]pulumi.Resource{registrationsRoute}))
 	if err != nil {
 		return nil, err
 	}

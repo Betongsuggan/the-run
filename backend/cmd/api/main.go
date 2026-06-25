@@ -14,6 +14,7 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/api"
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
+	"github.com/BirgerRydback/the-run/backend/internal/turnstile"
 )
 
 func main() {
@@ -29,8 +30,13 @@ func main() {
 		log.Fatalf("init auth config: %v", err)
 	}
 
+	turnstileCfg, err := turnstile.LoadConfig(ctx)
+	if err != nil {
+		log.Fatalf("init turnstile config: %v", err)
+	}
+
 	mux := http.NewServeMux()
-	api.Register(mux, dynStore, authCfg)
+	api.Register(mux, dynStore, authCfg, turnstileCfg)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") == "" {
 		addr := ":8080"

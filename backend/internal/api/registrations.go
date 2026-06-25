@@ -16,10 +16,14 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
+	"github.com/BirgerRydback/the-run/backend/internal/turnstile"
 )
 
 type RegisterInput struct {
-	Body struct {
+	// Forwarded by API Gateway for the requesting browser; passed to
+	// Cloudflare siteverify so Turnstile can risk-rank by IP.
+	ClientIP string `header:"X-Forwarded-For"`
+	Body     struct {
 		Name        string `json:"name" minLength:"1" maxLength:"120" doc:"Full name of the registrant"`
 		Email       string `json:"email" format:"email" maxLength:"254" doc:"Contact email — used for race comms and to manage your data"`
 		DateOfBirth string `json:"dateOfBirth" format:"date" doc:"Birth date (YYYY-MM-DD)"`
@@ -33,8 +37,14 @@ type RegisterInput struct {
 		// overwritten — that's an A1.1 (/my-data) responsibility.
 		PublicResults bool `json:"publicResults" doc:"Allow this runner's name to appear in public results (opt-out)"`
 		Marketing     bool `json:"marketing" doc:"Receive race news and invitations (opt-in)"`
-		// Honeypot field: legitimate clients leave it empty. Real bot
-		// protection (Turnstile / hCaptcha) is a TODO — see PROJECT_PLAN.md.
+		// Cloudflare Turnstile token from the browser widget. Validated
+		// server-side before any DynamoDB writes. Empty/invalid → 400.
+		// Skipped entirely when the backend has no Turnstile secret
+		// configured (local dev).
+		TurnstileToken string `json:"turnstileToken,omitempty" maxLength:"2048" doc:"Cloudflare Turnstile token; required when bot protection is enabled"`
+		// Honeypot field: legitimate clients leave it empty. Cheap second
+		// line of defence behind Turnstile — catches bots that don't render
+		// JS but still post the form.
 		Website string `json:"website,omitempty" doc:"Leave blank — honeypot"`
 	}
 }
@@ -47,7 +57,7 @@ type RegisterOutput struct {
 	}
 }
 
-func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config) {
+func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, turnstileCfg turnstile.Config) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "register-for-race",
 		Method:        "POST",
@@ -63,6 +73,17 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config) {
 			out.Body.ID = "ignored"
 			out.Body.Status = "received"
 			return out, nil
+		}
+
+		// X-Forwarded-For from API Gateway can be a comma-separated chain
+		// (client, proxy1, proxy2…). The leftmost entry is the original
+		// browser IP.
+		clientIP := strings.TrimSpace(strings.SplitN(in.ClientIP, ",", 2)[0])
+		if err := turnstile.Verify(ctx, turnstileCfg, in.Body.TurnstileToken, clientIP); err != nil {
+			if errors.Is(err, turnstile.ErrInvalidToken) {
+				return nil, huma.Error400BadRequest("bot challenge failed; please retry")
+			}
+			return nil, fmt.Errorf("verify turnstile: %w", err)
 		}
 
 		addr, err := mail.ParseAddress(in.Body.Email)

@@ -14,6 +14,7 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
+	"github.com/BirgerRydback/the-run/backend/internal/turnstile"
 )
 
 // fakeStore is a tiny in-memory implementation covering only the methods the
@@ -78,7 +79,8 @@ func (f *fakeStore) CreateRegistration(_ context.Context, r models.Registration)
 func buildTestAPI(t *testing.T, s store.Store) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t, huma.DefaultConfig("test", "0.0.0"))
-	registerRegistrations(api, s, auth.Config{PrivacyVersion: "2026-08-01"})
+	// Skip Turnstile in tests; covered separately by the turnstile package's own tests.
+	registerRegistrations(api, s, auth.Config{PrivacyVersion: "2026-08-01"}, turnstile.Config{SkipVerification: true})
 	return api
 }
 

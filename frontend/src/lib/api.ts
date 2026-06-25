@@ -23,6 +23,7 @@ export type RegisterForRaceInput = {
 	raceId: string;
 	publicResults: boolean;
 	marketing: boolean;
+	turnstileToken?: string;
 	website?: string;
 };
 
