@@ -143,6 +143,12 @@ const sv = {
 		genderLabel: 'Kön',
 		raceLabel: 'Lopp',
 		racePlaceholder: 'Välj ett kommande lopp',
+		consentPublicResultsLabel: 'Visa mitt resultat publikt',
+		consentPublicResultsHelp:
+			'Ditt namn, klass och tid visas i de publika resultatlistorna. Avmarkera om du föredrar att vara anonym.',
+		consentMarketingLabel: 'Skicka mig nyheter och inbjudningar',
+		consentMarketingHelp:
+			'Sällsynta utskick om kommande lopp. Du kan när som helst avregistrera dig.',
 		submit: 'Skicka anmälan',
 		submitting: 'Skickar…',
 		successHeading: 'Tack — vi har tagit emot din anmälan!',
@@ -435,6 +441,12 @@ const en: Catalog = {
 		genderLabel: 'Gender',
 		raceLabel: 'Race',
 		racePlaceholder: 'Pick an upcoming race',
+		consentPublicResultsLabel: 'Show my result publicly',
+		consentPublicResultsHelp:
+			'Your name, category and time appear in the public results listings. Uncheck if you prefer to stay anonymous.',
+		consentMarketingLabel: 'Send me race news and invitations',
+		consentMarketingHelp:
+			'Occasional updates about upcoming races. You can unsubscribe at any time.',
 		submit: 'Submit registration',
 		submitting: 'Submitting…',
 		successHeading: "Thanks — we've received your registration!",

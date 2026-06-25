@@ -119,6 +119,9 @@
 					<p>{i18n.m.admin.login.enrollInstructions}</p>
 					{#if qrSvg}
 						<div class="flex justify-center rounded-md bg-white p-3">
+							<!-- Safe: qrcode encodes the otpauth URI as a vector matrix; the
+							     SVG contains only <path> data, no embedded text. -->
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							{@html qrSvg}
 						</div>
 					{/if}

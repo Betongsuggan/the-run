@@ -22,6 +22,10 @@
 	let dateOfBirth = $state('');
 	let gender = $state<Gender>('M');
 	let raceId = $state('');
+	// Public-results consent defaults to true (opt-out); marketing defaults to
+	// false (opt-in). The backend stamps the policy version + timestamp.
+	let publicResults = $state(true);
+	let marketing = $state(false);
 	// Honeypot — kept empty by real users; bots tend to fill every field.
 	// TODO: layer on a real captcha (Cloudflare Turnstile or hCaptcha) before
 	// launch — see PROJECT_PLAN.md.
@@ -71,6 +75,8 @@
 				dateOfBirth,
 				gender,
 				raceId,
+				publicResults,
+				marketing,
 				website
 			});
 			success = true;
@@ -87,6 +93,8 @@
 		email = '';
 		dateOfBirth = '';
 		gender = 'M';
+		publicResults = true;
+		marketing = false;
 		errorMsg = null;
 	}
 </script>
@@ -199,6 +207,25 @@
 						{/each}
 					</select>
 				</label>
+
+				<div class="space-y-3 border-t border-surface-200-800 pt-4">
+					<label class="flex items-start gap-3">
+						<input type="checkbox" class="checkbox mt-0.5" bind:checked={publicResults} />
+						<span class="text-sm">
+							<span class="font-medium">{i18n.m.register.consentPublicResultsLabel}</span>
+							<span class="block text-xs opacity-70"
+								>{i18n.m.register.consentPublicResultsHelp}</span
+							>
+						</span>
+					</label>
+					<label class="flex items-start gap-3">
+						<input type="checkbox" class="checkbox mt-0.5" bind:checked={marketing} />
+						<span class="text-sm">
+							<span class="font-medium">{i18n.m.register.consentMarketingLabel}</span>
+							<span class="block text-xs opacity-70">{i18n.m.register.consentMarketingHelp}</span>
+						</span>
+					</label>
+				</div>
 
 				<!-- Honeypot: hidden from sighted users + assistive tech. Bots that
 				     fill every input will set this; the backend silently drops them. -->

@@ -24,15 +24,15 @@ func emailSentinelID(email string) string {
 }
 
 type accountItem struct {
-	ID           string         `dynamodbav:"id"`
-	Email        string         `dynamodbav:"email"`
-	PasswordHash string         `dynamodbav:"passwordHash,omitempty"`
-	MFASecret    string         `dynamodbav:"mfaSecret,omitempty"`
-	IsAdmin      bool           `dynamodbav:"isAdmin"`
-	Marketing    *consentItem   `dynamodbav:"marketing,omitempty"`
-	Locale       string         `dynamodbav:"locale,omitempty"`
-	CreatedAt    string         `dynamodbav:"createdAt"`
-	LastLoginAt  string         `dynamodbav:"lastLoginAt,omitempty"`
+	ID           string       `dynamodbav:"id"`
+	Email        string       `dynamodbav:"email"`
+	PasswordHash string       `dynamodbav:"passwordHash,omitempty"`
+	MFASecret    string       `dynamodbav:"mfaSecret,omitempty"`
+	IsAdmin      bool         `dynamodbav:"isAdmin"`
+	Marketing    *consentItem `dynamodbav:"marketing,omitempty"`
+	Locale       string       `dynamodbav:"locale,omitempty"`
+	CreatedAt    string       `dynamodbav:"createdAt"`
+	LastLoginAt  string       `dynamodbav:"lastLoginAt,omitempty"`
 	// Discriminator so a Scan can tell primary rows from sentinel rows.
 	Kind string `dynamodbav:"kind"`
 }

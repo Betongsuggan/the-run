@@ -76,18 +76,19 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 // ─── Runners ──────────────────────────────────────────────────────────
 
 type runnerItem struct {
-	ID         string `dynamodbav:"id"`
-	AccountID  string `dynamodbav:"accountId"`
-	NameDobKey string `dynamodbav:"nameDobKey"`
-	Name       string `dynamodbav:"name"`
-	BirthDate  string `dynamodbav:"birthDate"`
-	Gender     string `dynamodbav:"gender"`
-	CreatedAt  string `dynamodbav:"createdAt"`
+	ID            string       `dynamodbav:"id"`
+	AccountID     string       `dynamodbav:"accountId"`
+	NameDobKey    string       `dynamodbav:"nameDobKey"`
+	Name          string       `dynamodbav:"name"`
+	BirthDate     string       `dynamodbav:"birthDate"`
+	Gender        string       `dynamodbav:"gender"`
+	PublicResults *consentItem `dynamodbav:"publicResults,omitempty"`
+	CreatedAt     string       `dynamodbav:"createdAt"`
 }
 
 func runnerFromItem(item runnerItem) models.Runner {
 	createdAt, _ := time.Parse(time.RFC3339, item.CreatedAt)
-	return models.Runner{
+	r := models.Runner{
 		ID:        item.ID,
 		AccountID: item.AccountID,
 		Name:      item.Name,
@@ -95,6 +96,35 @@ func runnerFromItem(item runnerItem) models.Runner {
 		Gender:    item.Gender,
 		CreatedAt: createdAt,
 	}
+	if item.PublicResults != nil {
+		at, _ := time.Parse(time.RFC3339, item.PublicResults.At)
+		r.Consents.PublicResults = models.Consent{
+			Granted:       item.PublicResults.Granted,
+			At:            at,
+			PolicyVersion: item.PublicResults.PolicyVersion,
+		}
+	}
+	return r
+}
+
+func itemFromRunner(r models.Runner) runnerItem {
+	item := runnerItem{
+		ID:         r.ID,
+		AccountID:  r.AccountID,
+		NameDobKey: r.NameDobKey(),
+		Name:       r.Name,
+		BirthDate:  r.BirthDate,
+		Gender:     r.Gender,
+		CreatedAt:  r.CreatedAt.UTC().Format(time.RFC3339),
+	}
+	if !r.Consents.PublicResults.At.IsZero() || r.Consents.PublicResults.PolicyVersion != "" {
+		item.PublicResults = &consentItem{
+			Granted:       r.Consents.PublicResults.Granted,
+			At:            r.Consents.PublicResults.At.UTC().Format(time.RFC3339),
+			PolicyVersion: r.Consents.PublicResults.PolicyVersion,
+		}
+	}
+	return item
 }
 
 // RunnerByNameDOB returns every Runner record matching the given name+DOB key.
@@ -187,15 +217,7 @@ func (s *DynamoStore) GetRunner(ctx context.Context, id string) (*models.Runner,
 }
 
 func (s *DynamoStore) CreateRunner(ctx context.Context, r models.Runner) error {
-	item, err := attributevalue.MarshalMap(runnerItem{
-		ID:         r.ID,
-		AccountID:  r.AccountID,
-		NameDobKey: r.NameDobKey(),
-		Name:       r.Name,
-		BirthDate:  r.BirthDate,
-		Gender:     r.Gender,
-		CreatedAt:  r.CreatedAt.UTC().Format(time.RFC3339),
-	})
+	item, err := attributevalue.MarshalMap(itemFromRunner(r))
 	if err != nil {
 		return fmt.Errorf("marshal runner: %w", err)
 	}
@@ -209,15 +231,7 @@ func (s *DynamoStore) CreateRunner(ctx context.Context, r models.Runner) error {
 }
 
 func (s *DynamoStore) UpdateRunner(ctx context.Context, r models.Runner) error {
-	item, err := attributevalue.MarshalMap(runnerItem{
-		ID:         r.ID,
-		AccountID:  r.AccountID,
-		NameDobKey: r.NameDobKey(),
-		Name:       r.Name,
-		BirthDate:  r.BirthDate,
-		Gender:     r.Gender,
-		CreatedAt:  r.CreatedAt.UTC().Format(time.RFC3339),
-	})
+	item, err := attributevalue.MarshalMap(itemFromRunner(r))
 	if err != nil {
 		return fmt.Errorf("marshal runner: %w", err)
 	}

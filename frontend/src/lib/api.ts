@@ -21,6 +21,8 @@ export type RegisterForRaceInput = {
 	dateOfBirth: string;
 	gender: 'M' | 'F' | 'X';
 	raceId: string;
+	publicResults: boolean;
+	marketing: boolean;
 	website?: string;
 };
 

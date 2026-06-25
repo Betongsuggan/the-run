@@ -5,12 +5,19 @@ import (
 	"time"
 )
 
+// RunnerConsents groups per-runner consent decisions. Per-account decisions
+// (e.g. marketing email) live on AccountConsents instead.
+type RunnerConsents struct {
+	PublicResults Consent
+}
+
 type Runner struct {
 	ID        string
 	AccountID string
 	Name      string
 	BirthDate string
 	Gender    string
+	Consents  RunnerConsents
 	CreatedAt time.Time
 }
 

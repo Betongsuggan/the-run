@@ -23,8 +23,8 @@ const (
 
 // ChallengeClaims is signed with the same JWT secret as the session token.
 type ChallengeClaims struct {
-	Step          ChallengeStep `json:"step"`
-	EnrollSecret  string        `json:"enrollSecret,omitempty"`
+	Step         ChallengeStep `json:"step"`
+	EnrollSecret string        `json:"enrollSecret,omitempty"`
 	jwt.RegisteredClaims
 }
 
