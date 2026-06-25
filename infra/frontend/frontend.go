@@ -77,6 +77,59 @@ func Setup(
 		return nil, err
 	}
 
+	// Response headers policy (GDPR A1.4) — transport-level hardening that
+	// CloudFront adds to every response. The document-level CSP comes from
+	// SvelteKit's csp config (rendered as a <meta http-equiv> with proper
+	// SHA hashes for the inline theme-init script). We keep CSP off this
+	// policy because the meta-tag flavour is what handles hashes; mixing
+	// would just confuse browsers about which one wins.
+	headersPolicy, err := cloudfront.NewResponseHeadersPolicy(ctx, "site-security-headers", &cloudfront.ResponseHeadersPolicyArgs{
+		Comment: pulumi.String("the-run security headers: HSTS, anti-clickjacking, anti-MIME-sniff, referrer + permissions"),
+		SecurityHeadersConfig: &cloudfront.ResponseHeadersPolicySecurityHeadersConfigArgs{
+			StrictTransportSecurity: &cloudfront.ResponseHeadersPolicySecurityHeadersConfigStrictTransportSecurityArgs{
+				// One-year max-age + includeSubDomains is the standard
+				// "ready for HSTS preload list" configuration. We don't
+				// set `preload` until the site has been stable enough to
+				// commit irreversibly — easy to add later.
+				AccessControlMaxAgeSec: pulumi.Int(31536000),
+				IncludeSubdomains:      pulumi.Bool(true),
+				Preload:                pulumi.Bool(false),
+				Override:               pulumi.Bool(true),
+			},
+			ContentTypeOptions: &cloudfront.ResponseHeadersPolicySecurityHeadersConfigContentTypeOptionsArgs{
+				Override: pulumi.Bool(true),
+			},
+			// X-Frame-Options DENY blocks all iframe embedding. CSP
+			// frame-ancestors would be stronger but can't be set via
+			// meta http-equiv (browser limitation), so this is the
+			// belt-and-braces headers-level equivalent.
+			FrameOptions: &cloudfront.ResponseHeadersPolicySecurityHeadersConfigFrameOptionsArgs{
+				FrameOption: pulumi.String("DENY"),
+				Override:    pulumi.Bool(true),
+			},
+			ReferrerPolicy: &cloudfront.ResponseHeadersPolicySecurityHeadersConfigReferrerPolicyArgs{
+				ReferrerPolicy: pulumi.String("strict-origin-when-cross-origin"),
+				Override:       pulumi.Bool(true),
+			},
+		},
+		CustomHeadersConfig: &cloudfront.ResponseHeadersPolicyCustomHeadersConfigArgs{
+			Items: cloudfront.ResponseHeadersPolicyCustomHeadersConfigItemArray{
+				// Permissions-Policy isn't a SecurityHeadersConfig field
+				// yet in the AWS provider — set via custom headers. List
+				// is "deny everything we don't actively use". Add a
+				// feature here when we start needing it.
+				&cloudfront.ResponseHeadersPolicyCustomHeadersConfigItemArgs{
+					Header:   pulumi.String("Permissions-Policy"),
+					Value:    pulumi.String("accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"),
+					Override: pulumi.Bool(true),
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	aliases := pulumi.StringArray{pulumi.String(siteFQDN)}
 	if siteSub == "" {
 		aliases = append(aliases, pulumi.String("www."+domain))
@@ -105,7 +158,8 @@ func Setup(
 			CachedMethods: pulumi.StringArray{pulumi.String("GET"), pulumi.String("HEAD")},
 			Compress:      pulumi.Bool(true),
 			// AWS-managed CachingOptimized policy.
-			CachePolicyId: pulumi.String("658327ea-f89d-4fab-a63d-7e88639e58f6"),
+			CachePolicyId:           pulumi.String("658327ea-f89d-4fab-a63d-7e88639e58f6"),
+			ResponseHeadersPolicyId: headersPolicy.ID(),
 		},
 		CustomErrorResponses: cloudfront.DistributionCustomErrorResponseArray{
 			&cloudfront.DistributionCustomErrorResponseArgs{
