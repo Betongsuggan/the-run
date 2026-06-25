@@ -100,10 +100,14 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		if err != nil {
 			return nil, fmt.Errorf("list runners: %w", err)
 		}
+		// Non-race context — fall back to today for the minor-age check.
+		now := time.Now().UTC()
 		out := &listRunnersOutput{}
 		out.Body.Runners = make([]RunnerDTO, len(rs))
 		for i, r := range rs {
-			out.Body.Runners[i] = runnerToDTO(r)
+			dto := runnerToDTO(r)
+			redactRunnerForPublic(&dto, r, now)
+			out.Body.Runners[i] = dto
 		}
 		return out, nil
 	})
@@ -122,7 +126,9 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 			}
 			return nil, fmt.Errorf("get runner: %w", err)
 		}
-		return &runnerOutput{Body: runnerToDTO(*r)}, nil
+		dto := runnerToDTO(*r)
+		redactRunnerForPublic(&dto, *r, time.Now().UTC())
+		return &runnerOutput{Body: dto}, nil
 	})
 
 	huma.Register(api, huma.Operation{

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/apigatewayv2"
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/cloudwatch"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
 	awslambda "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/lambda"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/secretsmanager"
@@ -180,6 +181,21 @@ func Setup(
 		return nil, err
 	}
 
+	// Pre-create the Lambda's CloudWatch log group so we can pin retention to
+	// 30 days (GDPR A0.5). The Lambda runtime writes to
+	// `/aws/lambda/<function-name>` regardless; if we don't manage the group,
+	// AWS auto-creates it with infinite retention. Note: if a previous deploy
+	// already populated this group via auto-create, `pulumi up` will fail with
+	// "AlreadyExists" — delete it once with `aws logs delete-log-group
+	// --log-group-name /aws/lambda/backend-api` and re-run.
+	logGroup, err := cloudwatch.NewLogGroup(ctx, "api-fn-logs", &cloudwatch.LogGroupArgs{
+		Name:            pulumi.String("/aws/lambda/backend-api"),
+		RetentionInDays: pulumi.Int(30),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	fn, err := awslambda.NewFunction(ctx, "api-fn", &awslambda.FunctionArgs{
 		Role:          lambdaRole.Arn,
 		Name:          pulumi.String("backend-api"),
@@ -202,7 +218,7 @@ func Setup(
 				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
 			},
 		},
-	})
+	}, pulumi.DependsOn([]pulumi.Resource{logGroup}))
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,13 @@
 // Setup is invoked by both the production AWS stack and the LocalStack-targeted
 // local stack — `provider` is the difference (pass nil for the default
 // provider).
+//
+// SSE is set explicitly on every table (GDPR A0.6, self-documenting even
+// though it matches the AWS-managed default). PITR is enabled on every PII
+// table: accounts (email + password hash), runners (name + DOB), and
+// registrations (links runner to race, reconstructible into participation
+// history). Domain tables (events, races) and TTL-driven tables (auth-attempts)
+// skip PITR — there's nothing to recover.
 package database
 
 import (
@@ -9,6 +16,17 @@ import (
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/dynamodb"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
+// sseEnabled is the explicit AWS-managed encryption-at-rest opt-in. Applied
+// to every table so a future audit reads "encryption: on" without inferring
+// it from AWS defaults.
+func sseEnabled() *dynamodb.TableServerSideEncryptionArgs {
+	return &dynamodb.TableServerSideEncryptionArgs{Enabled: pulumi.Bool(true)}
+}
+
+func pitrEnabled() *dynamodb.TablePointInTimeRecoveryArgs {
+	return &dynamodb.TablePointInTimeRecoveryArgs{Enabled: pulumi.Bool(true)}
+}
 
 const (
 	RunnersTableName       = "the-run-runners"
@@ -60,6 +78,8 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 				ProjectionType: pulumi.String("ALL"),
 			},
 		},
+		ServerSideEncryption: sseEnabled(),
+		PointInTimeRecovery:  pitrEnabled(),
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -82,6 +102,8 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 				ProjectionType: pulumi.String("ALL"),
 			},
 		},
+		ServerSideEncryption: sseEnabled(),
+		PointInTimeRecovery:  pitrEnabled(),
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -94,6 +116,7 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		Attributes: dynamodb.TableAttributeArray{
 			&dynamodb.TableAttributeArgs{Name: pulumi.String("id"), Type: pulumi.String("S")},
 		},
+		ServerSideEncryption: sseEnabled(),
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -114,6 +137,7 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 				ProjectionType: pulumi.String("ALL"),
 			},
 		},
+		ServerSideEncryption: sseEnabled(),
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -130,9 +154,8 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		Attributes: dynamodb.TableAttributeArray{
 			&dynamodb.TableAttributeArgs{Name: pulumi.String("id"), Type: pulumi.String("S")},
 		},
-		PointInTimeRecovery: &dynamodb.TablePointInTimeRecoveryArgs{
-			Enabled: pulumi.Bool(true),
-		},
+		ServerSideEncryption: sseEnabled(),
+		PointInTimeRecovery:  pitrEnabled(),
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -154,6 +177,7 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 			AttributeName: pulumi.String("expiresAt"),
 			Enabled:       pulumi.Bool(true),
 		},
+		ServerSideEncryption: sseEnabled(),
 	}, opts...)
 	if err != nil {
 		return nil, err

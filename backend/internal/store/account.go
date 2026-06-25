@@ -141,7 +141,9 @@ func (s *DynamoStore) GetAccountByEmail(ctx context.Context, email string) (*mod
 		return nil, fmt.Errorf("unmarshal sentinel: %w", err)
 	}
 	if sentinel.AccountID == "" {
-		return nil, fmt.Errorf("sentinel for %q missing accountId", email)
+		// Data-integrity error, not user-facing. Don't embed the email so this
+		// can't accidentally leak into logs (GDPR A0.5).
+		return nil, errors.New("email sentinel row is missing accountId")
 	}
 	return s.GetAccountByID(ctx, sentinel.AccountID)
 }

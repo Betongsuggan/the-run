@@ -47,7 +47,7 @@
 		<p class="opacity-70">{i18n.m.runnersList.noMatch(query)}</p>
 	{:else}
 		<ul class="grid gap-3 sm:grid-cols-2">
-			{#each filtered as runner (runner.id)}
+			{#each filtered as runner, idx (runner.id || `redacted-${idx}`)}
 				<li><RunnerCard {runner} /></li>
 			{/each}
 		</ul>

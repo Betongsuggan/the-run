@@ -24,10 +24,9 @@
 	);
 </script>
 
-<a
-	href={resolve('/runners/[id]', { id: runner.id })}
-	class="group card preset-filled-surface-50-950 border border-surface-200-800 p-4 flex items-center gap-4 transition hover:-translate-y-0.5 hover:shadow-md"
->
+<!-- Redacted runners (opt-out / minor) come back with an empty id from the
+     backend; render as a non-clickable card instead of a broken link. -->
+{#snippet cardBody()}
 	<div
 		class="size-12 shrink-0 rounded-full flex items-center justify-center font-bold text-lg text-white shadow-sm"
 		style="background: oklch(0.62 0.14 {hue});"
@@ -45,8 +44,25 @@
 			</span>
 		</div>
 	</div>
-	<ChevronRight
-		class="size-4 opacity-30 transition-transform group-hover:translate-x-0.5 group-hover:opacity-80"
-		aria-hidden="true"
-	/>
-</a>
+	{#if runner.id}
+		<ChevronRight
+			class="size-4 opacity-30 transition-transform group-hover:translate-x-0.5 group-hover:opacity-80"
+			aria-hidden="true"
+		/>
+	{/if}
+{/snippet}
+
+{#if runner.id}
+	<a
+		href={resolve('/runners/[id]', { id: runner.id })}
+		class="group card preset-filled-surface-50-950 border border-surface-200-800 p-4 flex items-center gap-4 transition hover:-translate-y-0.5 hover:shadow-md"
+	>
+		{@render cardBody()}
+	</a>
+{:else}
+	<div
+		class="card preset-filled-surface-50-950 border border-surface-200-800 p-4 flex items-center gap-4"
+	>
+		{@render cardBody()}
+	</div>
+{/if}

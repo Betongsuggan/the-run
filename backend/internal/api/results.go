@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -114,11 +115,20 @@ func expandResult(res ResultDTO, ctx raceContext) (*ResultExpandedDTO, error) {
 	if err != nil {
 		return nil, err
 	}
+	runnerDTO := runnerToDTO(*runner)
+	// Minor-age check uses the race's event date so a runner who was 12 then
+	// stays redacted in that race's leaderboard even after they turn 13.
+	raceDate, _ := time.Parse("2006-01-02", ctx.event.Date)
+	if redacted := redactRunnerForPublic(&runnerDTO, *runner, raceDate); redacted {
+		// The runner's profile link is hidden; clear the sibling RunnerID
+		// field on the result row too, so the frontend can't reconstruct it.
+		res.RunnerID = ""
+	}
 	return &ResultExpandedDTO{
 		ResultDTO: res,
 		Race:      raceToDTO(ctx.race),
 		Event:     eventToDTO(ctx.event),
-		Runner:    runnerToDTO(*runner),
+		Runner:    runnerDTO,
 	}, nil
 }
 

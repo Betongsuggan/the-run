@@ -50,13 +50,22 @@
 	</p>
 {:else}
 	<section class="space-y-6">
-		<a
-			href={resolve('/runners/[id]', { id: result.runner.id })}
-			class="inline-flex items-center gap-1 text-sm opacity-70 hover:opacity-100 transition-opacity"
-		>
-			<ArrowLeft class="size-4" />
-			{result.runner.name}
-		</a>
+		{#if result.runner.id}
+			<a
+				href={resolve('/runners/[id]', { id: result.runner.id })}
+				class="inline-flex items-center gap-1 text-sm opacity-70 hover:opacity-100 transition-opacity"
+			>
+				<ArrowLeft class="size-4" />
+				{result.runner.name}
+			</a>
+		{:else}
+			<!-- Runner is redacted (opt-out or minor) — show the redacted label as
+			     plain text, no profile link. -->
+			<span class="inline-flex items-center gap-1 text-sm opacity-70">
+				<ArrowLeft class="size-4" />
+				{result.runner.name}
+			</span>
+		{/if}
 
 		<Hero>
 			{#snippet background()}

@@ -103,7 +103,7 @@
 			{/snippet}
 		</SectionHeader>
 		<ul class="grid gap-3 sm:grid-cols-2">
-			{#each runners.slice(0, 4) as runner (runner.id)}
+			{#each runners.slice(0, 4) as runner, idx (runner.id || `redacted-${idx}`)}
 				<li>
 					<RunnerCard {runner} />
 				</li>
