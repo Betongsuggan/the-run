@@ -29,6 +29,7 @@ func Register(
 	registerAdminRegistrations(api, s, authCfg)
 	registerResults(api, s)
 	registerGuardianConsent(api, s)
+	registerDSR(api, s, authCfg, sender)
 
 	return api
 }

@@ -103,7 +103,7 @@ func Setup(
 
 	dynamoPolicy := pulumi.All(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
-		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.GuardianTokens.Arn,
+		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.MagicTokens.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
@@ -246,19 +246,19 @@ func Setup(
 		Timeout:       pulumi.Int(10),
 		Environment: &awslambda.FunctionEnvironmentArgs{
 			Variables: pulumi.StringMap{
-				"RUNNERS_TABLE_NAME":         tables.Runners.Name,
-				"REGISTRATIONS_TABLE_NAME":   tables.Registrations.Name,
-				"EVENTS_TABLE_NAME":          tables.Events.Name,
-				"RACES_TABLE_NAME":           tables.Races.Name,
-				"ACCOUNTS_TABLE_NAME":        tables.Accounts.Name,
-				"AUTH_ATTEMPTS_TABLE_NAME":   tables.AuthAttempts.Name,
-				"GUARDIAN_TOKENS_TABLE_NAME": tables.GuardianTokens.Name,
-				"JWT_SECRET_ARN":             jwtSecret.Arn,
-				"SES_SENDER_ADDRESS":         pulumi.String(em.SenderAddress),
-				"SES_CONFIGURATION_SET":      em.ConfigurationSet.ConfigurationSetName,
-				"COOKIE_DOMAIN":              pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
-				"PRIVACY_POLICY_VERSION":     pulumi.String("2026-08-01"),
-				"SITE_BASE_URL":              pulumi.String("https://" + siteFQDN),
+				"RUNNERS_TABLE_NAME":       tables.Runners.Name,
+				"REGISTRATIONS_TABLE_NAME": tables.Registrations.Name,
+				"EVENTS_TABLE_NAME":        tables.Events.Name,
+				"RACES_TABLE_NAME":         tables.Races.Name,
+				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
+				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
+				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
+				"JWT_SECRET_ARN":           jwtSecret.Arn,
+				"SES_SENDER_ADDRESS":       pulumi.String(em.SenderAddress),
+				"SES_CONFIGURATION_SET":    em.ConfigurationSet.ConfigurationSetName,
+				"COOKIE_DOMAIN":            pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
+				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
+				"SITE_BASE_URL":            pulumi.String("https://" + siteFQDN),
 			},
 		},
 	}, pulumi.DependsOn([]pulumi.Resource{logGroup}))

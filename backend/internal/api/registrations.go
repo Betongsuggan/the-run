@@ -234,14 +234,15 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sen
 			if err != nil {
 				return nil, fmt.Errorf("generate guardian token: %w", err)
 			}
-			token := models.GuardianToken{
-				ID:                tokenID,
-				RegistrationID:    reg.ID,
-				GuardianAccountID: account.ID,
-				ExpiresAt:         now.Add(guardianTokenTTL),
-				CreatedAt:         now,
+			token := models.MagicToken{
+				Kind:      models.TokenKindGuardian,
+				ID:        tokenID,
+				AccountID: account.ID,
+				ContextID: reg.ID,
+				ExpiresAt: now.Add(guardianTokenTTL),
+				CreatedAt: now,
 			}
-			if err := s.CreateGuardianToken(ctx, token); err != nil {
+			if err := s.CreateMagicToken(ctx, token); err != nil {
 				return nil, fmt.Errorf("store guardian token: %w", err)
 			}
 			if err := sendGuardianConsentEmail(ctx, sender, normalizedEmail, runner.Name, tokenID); err != nil {

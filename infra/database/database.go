@@ -29,23 +29,23 @@ func pitrEnabled() *dynamodb.TablePointInTimeRecoveryArgs {
 }
 
 const (
-	RunnersTableName        = "the-run-runners"
-	RegistrationsTableName  = "the-run-registrations"
-	EventsTableName         = "the-run-events"
-	RacesTableName          = "the-run-races"
-	AccountsTableName       = "the-run-accounts"
-	AuthAttemptsTableName   = "the-run-auth-attempts"
-	GuardianTokensTableName = "the-run-guardian-tokens"
+	RunnersTableName       = "the-run-runners"
+	RegistrationsTableName = "the-run-registrations"
+	EventsTableName        = "the-run-events"
+	RacesTableName         = "the-run-races"
+	AccountsTableName      = "the-run-accounts"
+	AuthAttemptsTableName  = "the-run-auth-attempts"
+	MagicTokensTableName   = "the-run-magic-tokens"
 )
 
 type Tables struct {
-	Runners        *dynamodb.Table
-	Registrations  *dynamodb.Table
-	Events         *dynamodb.Table
-	Races          *dynamodb.Table
-	Accounts       *dynamodb.Table
-	AuthAttempts   *dynamodb.Table
-	GuardianTokens *dynamodb.Table
+	Runners       *dynamodb.Table
+	Registrations *dynamodb.Table
+	Events        *dynamodb.Table
+	Races         *dynamodb.Table
+	Accounts      *dynamodb.Table
+	AuthAttempts  *dynamodb.Table
+	MagicTokens   *dynamodb.Table
 }
 
 func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
@@ -185,12 +185,14 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		return nil, err
 	}
 
-	// Guardian tokens (GDPR A0.4): PK=id (opaque random string). TTL on
-	// `expiresAt` (epoch seconds) auto-purges abandoned tokens — abandoned
-	// = "guardian never clicked the magic link within 7 days". No PITR;
-	// expiring tokens are not data worth recovering.
-	guardianTokens, err := dynamodb.NewTable(ctx, "guardian-tokens-table", &dynamodb.TableArgs{
-		Name:        pulumi.String(GuardianTokensTableName),
+	// Magic tokens: shared table for every one-shot link we email out
+	// (guardian consent A0.4, DSR access/restore A1.1, email-change
+	// confirmation A1.1). Rows discriminate via the `kind` attribute. PK=id
+	// (opaque random string). TTL on `expiresAt` (epoch seconds) auto-purges
+	// abandoned/expired tokens. No PITR; expiring tokens are not data worth
+	// recovering.
+	magicTokens, err := dynamodb.NewTable(ctx, "magic-tokens-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(MagicTokensTableName),
 		BillingMode: pulumi.String("PAY_PER_REQUEST"),
 		HashKey:     pulumi.String("id"),
 		Attributes: dynamodb.TableAttributeArray{
@@ -207,12 +209,12 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 	}
 
 	return &Tables{
-		Runners:        runners,
-		Registrations:  registrations,
-		Events:         events,
-		Races:          races,
-		Accounts:       accounts,
-		AuthAttempts:   authAttempts,
-		GuardianTokens: guardianTokens,
+		Runners:       runners,
+		Registrations: registrations,
+		Events:        events,
+		Races:         races,
+		Accounts:      accounts,
+		AuthAttempts:  authAttempts,
+		MagicTokens:   magicTokens,
 	}, nil
 }

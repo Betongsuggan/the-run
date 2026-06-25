@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
 	import Waves from '@lucide/svelte/icons/waves';
+	import UserCog from '@lucide/svelte/icons/user-cog';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -13,6 +14,7 @@
 	const isHome = $derived($page.url.pathname === '/');
 	const isRunners = $derived($page.url.pathname.startsWith('/runners'));
 	const isRegister = $derived($page.url.pathname.startsWith('/register'));
+	const isMyData = $derived($page.url.pathname.startsWith('/my-data'));
 
 	$effect(() => {
 		if (typeof document !== 'undefined') {
@@ -67,6 +69,16 @@
 				</li>
 			</ul>
 			<div class="ml-auto flex items-center gap-2">
+				<a
+					href={resolve('/my-data')}
+					class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors {isMyData
+						? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200 font-semibold'
+						: 'opacity-80 hover:opacity-100 hover:bg-surface-100-900'}"
+					title={i18n.m.nav.myData}
+				>
+					<UserCog class="size-4" aria-hidden="true" />
+					<span class="hidden sm:inline">{i18n.m.nav.myData}</span>
+				</a>
 				<ThemeToggle />
 				<LanguageSwitcher />
 			</div>
@@ -78,9 +90,13 @@
 	</main>
 
 	<footer class="border-t border-surface-200-800 py-6">
-		<div class="mx-auto max-w-6xl px-4 flex items-center justify-center gap-3 text-xs opacity-70">
+		<div
+			class="mx-auto max-w-6xl px-4 flex items-center justify-center gap-3 text-xs opacity-70"
+		>
 			<PineSprig class="size-6 text-success-700 dark:text-success-300" />
-			<span>{i18n.m.footer}</span>
+			<!-- Reserved for policy + admin links once those pages exist (B0.1 privacy
+			     policy, /admin entry, etc.). Keep the visual frame in place so the
+			     layout doesn't reflow when the links land. -->
 			<PineSprig class="size-6 text-success-700 dark:text-success-300 scale-x-[-1]" />
 		</div>
 	</footer>

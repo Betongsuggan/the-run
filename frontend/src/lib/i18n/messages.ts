@@ -13,13 +13,13 @@ const sv = {
 		home: 'Hem',
 		runners: 'Löpare',
 		register: 'Anmäl dig',
+		myData: 'Mina uppgifter',
 		language: 'Språk',
 		theme: 'Tema',
 		themeLight: 'Ljust',
 		themeDark: 'Mörkt',
 		themeSystem: 'System'
 	},
-	footer: 'Ingmarsöloppet · mockdata — backend ej ansluten',
 	landing: {
 		description: 'En plattform för att visa löparresultat från årliga lopp.',
 		heroTagline:
@@ -177,6 +177,43 @@ const sv = {
 			'Länken är ogiltig, har redan använts, eller har förfallit. Om du behöver hjälp — anmäl barnet igen så skickar vi en ny länk.',
 		missingToken: 'Ingen kod fanns i URL:en.'
 	},
+	myData: {
+		heading: 'Mina uppgifter',
+		intro:
+			'Här kan du se, exportera och hantera alla uppgifter vi har om dig och löpare du anmält.',
+		emailLabel: 'E-post',
+		emailPlaceholder: 'din@email.se',
+		emailHelp: 'Vi mejlar en länk som loggar in dig på den här sidan. Inget lösenord behövs.',
+		requestSubmit: 'Skicka inloggningslänk',
+		requestSubmitting: 'Skickar …',
+		sentHeading: 'Kontrollera din e-post',
+		sentBody:
+			'Om den e-postadressen finns hos oss har vi skickat en länk dit. Klicka på den inom 30 minuter för att logga in.',
+		verifying: 'Loggar in …',
+		errorHeading: 'Länken kunde inte verifieras',
+		errorBody: 'Länken är ogiltig, har redan använts, eller har förfallit. Begär en ny länk.',
+		tryAgain: 'Begär en ny länk',
+		logout: 'Logga ut',
+		youHeading: 'Du',
+		youEmail: 'E-post',
+		youCreatedAt: 'Konto skapat',
+		youLocale: 'Språk',
+		youMarketingConsent: 'Nyhetsbrev',
+		consentGranted: 'Ja',
+		consentNot: 'Nej',
+		runnersHeading: (n: number) =>
+			n === 1 ? '1 löpare under ditt konto' : `${n} löpare under ditt konto`,
+		runnersEmpty: 'Inga löpare ännu — anmäl dig själv eller en familjemedlem.',
+		runnersYears: 'år',
+		runnersPublicResults: 'Publika resultat',
+		runnersRegistrations: (n: number) => (n === 1 ? '1 anmälan' : `${n} anmälningar`),
+		exportHeading: 'Exportera dina uppgifter',
+		exportBody:
+			'Ladda ner allt vi har om dig som en JSON-fil — konto, löpare, anmälningar och samtycken.',
+		exportSubmit: 'Ladda ner JSON',
+		exportSubmitting: 'Förbereder …',
+		moreSoon: 'Fler funktioner (redigera, byt e-post, ta bort konto) kommer snart.'
+	},
 	admin: {
 		title: 'Admin',
 		login: {
@@ -329,13 +366,13 @@ const en: Catalog = {
 		home: 'Home',
 		runners: 'Runners',
 		register: 'Sign up',
+		myData: 'My data',
 		language: 'Language',
 		theme: 'Theme',
 		themeLight: 'Light',
 		themeDark: 'Dark',
 		themeSystem: 'System'
 	},
-	footer: 'Ingmarsöloppet · mock data — backend not yet wired',
 	landing: {
 		description: 'A platform for viewing runner race results across yearly events.',
 		heroTagline:
@@ -493,6 +530,43 @@ const en: Catalog = {
 		errorBody:
 			"The link is invalid, already used, or expired. If you need help, register the child again — we'll send a new link.",
 		missingToken: 'No token was supplied in the URL.'
+	},
+	myData: {
+		heading: 'My data',
+		intro:
+			'See, export and manage everything we have on file about you and the runners you have signed up.',
+		emailLabel: 'Email',
+		emailPlaceholder: 'you@example.com',
+		emailHelp: "We'll email you a link that signs you in to this page. No password needed.",
+		requestSubmit: 'Send sign-in link',
+		requestSubmitting: 'Sending …',
+		sentHeading: 'Check your email',
+		sentBody:
+			"If we have that email on file, we've sent a link there. Click it within 30 minutes to sign in.",
+		verifying: 'Signing you in …',
+		errorHeading: 'The link could not be verified',
+		errorBody: 'The link is invalid, already used, or expired. Request a new one.',
+		tryAgain: 'Request a new link',
+		logout: 'Sign out',
+		youHeading: 'You',
+		youEmail: 'Email',
+		youCreatedAt: 'Account created',
+		youLocale: 'Language',
+		youMarketingConsent: 'Newsletter',
+		consentGranted: 'Yes',
+		consentNot: 'No',
+		runnersHeading: (n: number) =>
+			n === 1 ? '1 runner under your account' : `${n} runners under your account`,
+		runnersEmpty: 'No runners yet — sign yourself or a family member up.',
+		runnersYears: 'yrs',
+		runnersPublicResults: 'Public results',
+		runnersRegistrations: (n: number) => (n === 1 ? '1 registration' : `${n} registrations`),
+		exportHeading: 'Export your data',
+		exportBody:
+			'Download everything we have on you as a JSON file — account, runners, registrations, consents.',
+		exportSubmit: 'Download JSON',
+		exportSubmitting: 'Preparing …',
+		moreSoon: 'More features (edit fields, change email, delete account) coming soon.'
 	},
 	admin: {
 		title: 'Admin',

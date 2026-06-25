@@ -112,7 +112,7 @@ dev-backend:
     export RACES_TABLE_NAME=the-run-races
     export ACCOUNTS_TABLE_NAME=the-run-accounts
     export AUTH_ATTEMPTS_TABLE_NAME=the-run-auth-attempts
-    export GUARDIAN_TOKENS_TABLE_NAME=the-run-guardian-tokens
+    export MAGIC_TOKENS_TABLE_NAME=the-run-magic-tokens
     # Site base URL used when composing guardian-consent magic links (A0.4).
     # Local dev points at the SvelteKit dev server.
     export SITE_BASE_URL=http://localhost:5173
@@ -156,8 +156,8 @@ create-admin email='' password='' force='':
     : "${RACES_TABLE_NAME:=the-run-races}"
     : "${ACCOUNTS_TABLE_NAME:=the-run-accounts}"
     : "${AUTH_ATTEMPTS_TABLE_NAME:=the-run-auth-attempts}"
-    : "${GUARDIAN_TOKENS_TABLE_NAME:=the-run-guardian-tokens}"
-    export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME GUARDIAN_TOKENS_TABLE_NAME
+    : "${MAGIC_TOKENS_TABLE_NAME:=the-run-magic-tokens}"
+    export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME MAGIC_TOKENS_TABLE_NAME
     if [ -n "$FORCE" ]; then
       go run ./cmd/admin -email "$EMAIL" -password "$PASSWORD" -force
     else

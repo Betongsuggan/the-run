@@ -97,13 +97,14 @@ type Store interface {
 	UpdateRegistrationStatus(ctx context.Context, registrationID, status string) error
 	DeleteRegistration(ctx context.Context, raceID, runnerID string) error
 
-	// Guardian tokens (GDPR A0.4) — magic-link receipts for parental consent
-	// on under-13 registrations. CreateGuardianToken returns ErrAlreadyExists
-	// on token-id collision (effectively impossible with random IDs).
-	// MarkGuardianTokenUsed returns ErrAlreadyExists if the token was used
-	// in a concurrent request.
-	CreateGuardianToken(ctx context.Context, t models.GuardianToken) error
-	GetGuardianToken(ctx context.Context, id string) (*models.GuardianToken, error)
-	MarkGuardianTokenUsed(ctx context.Context, id string, at time.Time) error
-	DeleteGuardianToken(ctx context.Context, id string) error
+	// Magic tokens — one-shot links emailed to users. Same primitive backs
+	// guardian consent (A0.4), DSR access/restore (A1.1), and email-change
+	// confirmation (A1.1). Kind discriminates; see models.TokenKind.
+	// CreateMagicToken returns ErrAlreadyExists on token-id collision
+	// (effectively impossible with random IDs). MarkMagicTokenUsed returns
+	// ErrAlreadyExists if the token was used in a concurrent request.
+	CreateMagicToken(ctx context.Context, t models.MagicToken) error
+	GetMagicToken(ctx context.Context, id string) (*models.MagicToken, error)
+	MarkMagicTokenUsed(ctx context.Context, id string, at time.Time) error
+	DeleteMagicToken(ctx context.Context, id string) error
 }

@@ -34,6 +34,25 @@ func TestHashAndVerifyPassword(t *testing.T) {
 	}
 }
 
+func TestDSRSession_Roundtrip(t *testing.T) {
+	cfg := testConfig()
+	now := time.Now().UTC()
+	tok, err := IssueDSRSession(cfg, "acct-roundtrip", now)
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	claims, err := ParseDSRSession(cfg, tok)
+	if err != nil {
+		t.Fatalf("parse: %v (token=%q)", err, tok)
+	}
+	if claims.Subject != "acct-roundtrip" {
+		t.Errorf("subject = %q, want acct-roundtrip", claims.Subject)
+	}
+	if claims.Kind != "dsr" {
+		t.Errorf("kind = %q, want dsr", claims.Kind)
+	}
+}
+
 func TestHashEmptyPasswordRejected(t *testing.T) {
 	if _, err := HashPassword(""); err == nil {
 		t.Fatal("expected error for empty password")

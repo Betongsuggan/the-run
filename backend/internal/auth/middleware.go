@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -74,24 +75,79 @@ func MaybeAdmin(cfg Config) func(huma.Context, func(huma.Context)) {
 	}
 }
 
-// readCookieFromHumaCtx parses the Cookie header by name. Huma abstracts away
-// http.Request, so we walk the headers directly. (The header is a single line
-// with semicolon-separated name=value pairs per RFC 6265.)
-func readCookieFromHumaCtx(hctx huma.Context, name string) string {
-	header := hctx.Header("Cookie")
-	if header == "" {
+// dsrCtxKey stashes DSR claims separately from admin claims so the two never
+// conflate. An admin using /my-data on their own data has BOTH set; the DSR
+// handlers read this key, the admin handlers read ctxKey{}.
+type dsrCtxKey struct{}
+
+// WithDSRClaims puts DSR session claims into the context.
+func WithDSRClaims(ctx context.Context, claims *DSRSessionClaims) context.Context {
+	return context.WithValue(ctx, dsrCtxKey{}, claims)
+}
+
+// DSRClaimsFromContext returns the DSR session claims, or nil if the request
+// is not authenticated as a DSR session.
+func DSRClaimsFromContext(ctx context.Context) *DSRSessionClaims {
+	v, _ := ctx.Value(dsrCtxKey{}).(*DSRSessionClaims)
+	return v
+}
+
+// DSRSubject returns the account id from a DSR session, empty if absent.
+func DSRSubject(ctx context.Context) string {
+	c := DSRClaimsFromContext(ctx)
+	if c == nil {
 		return ""
 	}
-	// http.Request offers Cookies() but we don't have one here; mimic its
-	// parsing inline rather than synthesise a request.
-	for _, part := range splitCookies(header) {
-		if eq := indexByte(part, '='); eq > 0 {
-			if part[:eq] == name {
-				return part[eq+1:]
+	return c.Subject
+}
+
+// RequireDSRSession gates /my-data endpoints. Mirrors RequireAdmin shape:
+// reads the DSR cookie, parses+validates, attaches claims, rejects with 401
+// on any failure. Distinct cookie name + claim kind from the admin path so
+// the two can't be confused even with a bug.
+func RequireDSRSession(cfg Config) func(huma.Context, func(huma.Context)) {
+	return func(hctx huma.Context, next func(huma.Context)) {
+		token := readCookieFromHumaCtx(hctx, DSRSessionCookieName)
+		claims, err := ParseDSRSession(cfg, token)
+		if err != nil {
+			// Logged so CloudWatch shows WHY a session was rejected without
+			// leaking the reason to the client (which keeps the 401 body
+			// stable for unauthenticated callers).
+			log.Printf("dsr session rejected: tokenLen=%d err=%v", len(token), err)
+			writeAuthError(hctx, http.StatusUnauthorized, "DSR session required")
+			return
+		}
+		hctx = huma.WithContext(hctx, WithDSRClaims(hctx.Context(), claims))
+		next(hctx)
+	}
+}
+
+// readCookieFromHumaCtx parses the Cookie header by name.
+//
+// Important: the AWS HTTP API v2 → Lambda adapter (aws-lambda-go-api-proxy)
+// adds EACH cookie as its own `Cookie:` header line via `Header.Add`, not as
+// one comma/semicolon-joined value. Go's `Header.Get("Cookie")` (which is
+// what `huma.Context.Header(...)` calls under the hood) returns ONLY the
+// first value. So if a request carries multiple cookies (e.g. an admin
+// session AND a DSR session), only the cookie in the first header line is
+// visible — the others silently vanish. We use EachHeader to walk every
+// "Cookie" header line and merge them.
+func readCookieFromHumaCtx(hctx huma.Context, name string) string {
+	var found string
+	hctx.EachHeader(func(hName, hValue string) {
+		if found != "" || hName != "Cookie" {
+			return
+		}
+		// Each header line may itself contain multiple cookies separated by
+		// "; " (the canonical browser format) — split defensively.
+		for _, part := range splitCookies(hValue) {
+			if eq := indexByte(part, '='); eq > 0 && part[:eq] == name {
+				found = part[eq+1:]
+				return
 			}
 		}
-	}
-	return ""
+	})
+	return found
 }
 
 func splitCookies(header string) []string {

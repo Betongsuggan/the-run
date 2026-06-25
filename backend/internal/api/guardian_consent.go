@@ -37,7 +37,7 @@ func registerGuardianConsent(api huma.API, s store.Store) {
 		Tags:          []string{"registrations"},
 		DefaultStatus: http.StatusOK,
 	}, func(ctx context.Context, in *verifyGuardianConsentInput) (*verifyGuardianConsentOutput, error) {
-		token, err := s.GetGuardianToken(ctx, in.Body.Token)
+		token, err := s.GetMagicToken(ctx, in.Body.Token)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				// Could be: expired-and-purged-by-TTL, never issued, or
@@ -46,6 +46,11 @@ func registerGuardianConsent(api huma.API, s store.Store) {
 				return nil, huma.Error404NotFound("token not found or expired")
 			}
 			return nil, err
+		}
+		if token.Kind != models.TokenKindGuardian {
+			// Different magic-link kind ended up at this endpoint —
+			// surface the same 404 to avoid leaking that the ID exists.
+			return nil, huma.Error404NotFound("token not found or expired")
 		}
 		now := time.Now().UTC()
 		if token.UsedAt != nil {
@@ -57,18 +62,18 @@ func registerGuardianConsent(api huma.API, s store.Store) {
 
 		// Order matters: mark the token used FIRST (conditional write, blocks
 		// concurrent double-redeems), then flip the registration status.
-		if err := s.MarkGuardianTokenUsed(ctx, token.ID, now); err != nil {
+		if err := s.MarkMagicTokenUsed(ctx, token.ID, now); err != nil {
 			if errors.Is(err, store.ErrAlreadyExists) {
 				return nil, huma.Error410Gone("token already used")
 			}
 			return nil, err
 		}
-		if err := s.UpdateRegistrationStatus(ctx, token.RegistrationID, models.StatusReceived); err != nil {
+		if err := s.UpdateRegistrationStatus(ctx, token.ContextID, models.StatusReceived); err != nil {
 			return nil, err
 		}
 
 		out := &verifyGuardianConsentOutput{}
-		out.Body.RegistrationID = token.RegistrationID
+		out.Body.RegistrationID = token.ContextID
 		out.Body.Status = models.StatusReceived
 		return out, nil
 	})

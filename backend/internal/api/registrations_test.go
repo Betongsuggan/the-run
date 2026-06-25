@@ -28,7 +28,7 @@ type fakeStore struct {
 	registrations   []models.Registration
 	races           map[string]models.Race
 	events          map[string]models.Event
-	guardianTokens  map[string]models.GuardianToken
+	magicTokens     map[string]models.MagicToken
 }
 
 func newFakeStore() *fakeStore {
@@ -36,7 +36,7 @@ func newFakeStore() *fakeStore {
 		accountsByEmail: map[string]*models.Account{},
 		races:           map[string]models.Race{},
 		events:          map[string]models.Event{},
-		guardianTokens:  map[string]models.GuardianToken{},
+		magicTokens:     map[string]models.MagicToken{},
 	}
 	// Default seed so the existing adult tests don't have to set this up: a
 	// "race-1" pointing at an event dated 2026-07-01.
@@ -59,11 +59,11 @@ func (f *fakeStore) GetEvent(_ context.Context, id string) (*models.Event, error
 	return nil, store.ErrNotFound
 }
 
-func (f *fakeStore) CreateGuardianToken(_ context.Context, t models.GuardianToken) error {
-	if _, exists := f.guardianTokens[t.ID]; exists {
+func (f *fakeStore) CreateMagicToken(_ context.Context, t models.MagicToken) error {
+	if _, exists := f.magicTokens[t.ID]; exists {
 		return store.ErrAlreadyExists
 	}
-	f.guardianTokens[t.ID] = t
+	f.magicTokens[t.ID] = t
 	return nil
 }
 
@@ -248,8 +248,8 @@ func TestRegister_ExistingAccount_LeavesMarketingUntouched(t *testing.T) {
 	if s.registrations[0].Status != models.StatusPendingGuardianConsent {
 		t.Errorf("status = %q, want %q", s.registrations[0].Status, models.StatusPendingGuardianConsent)
 	}
-	if len(s.guardianTokens) != 1 {
-		t.Errorf("want 1 guardian token, got %d", len(s.guardianTokens))
+	if len(s.magicTokens) != 1 {
+		t.Errorf("want 1 guardian token, got %d", len(s.magicTokens))
 	}
 }
 
@@ -282,12 +282,15 @@ func TestRegister_Under13_RequiresGuardianConsent(t *testing.T) {
 	if s.registrations[0].Status != models.StatusPendingGuardianConsent {
 		t.Errorf("status = %q, want %q", s.registrations[0].Status, models.StatusPendingGuardianConsent)
 	}
-	if len(s.guardianTokens) != 1 {
-		t.Fatalf("want 1 guardian token, got %d", len(s.guardianTokens))
+	if len(s.magicTokens) != 1 {
+		t.Fatalf("want 1 guardian token, got %d", len(s.magicTokens))
 	}
-	for _, tok := range s.guardianTokens {
-		if tok.RegistrationID != s.registrations[0].ID {
-			t.Errorf("token registrationId = %q, want %q", tok.RegistrationID, s.registrations[0].ID)
+	for _, tok := range s.magicTokens {
+		if tok.Kind != models.TokenKindGuardian {
+			t.Errorf("token kind = %q, want %q", tok.Kind, models.TokenKindGuardian)
+		}
+		if tok.ContextID != s.registrations[0].ID {
+			t.Errorf("token contextId = %q, want %q (registration id)", tok.ContextID, s.registrations[0].ID)
 		}
 		if tok.ExpiresAt.Before(time.Now().Add(6*24*time.Hour)) || tok.ExpiresAt.After(time.Now().Add(8*24*time.Hour)) {
 			t.Errorf("token expiry not ~7 days out: %v", tok.ExpiresAt)
