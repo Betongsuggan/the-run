@@ -9,6 +9,7 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Lock from '@lucide/svelte/icons/lock';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 	import AlertCircle from '@lucide/svelte/icons/alert-circle';
 	import {
@@ -21,6 +22,8 @@
 		dsrPatchRunner,
 		dsrPatchLocale,
 		dsrRequestEmailChange,
+		dsrEraseRunner,
+		dsrEraseAccount,
 		type DSRMe,
 		type DSRRunner
 	} from '$lib/api/dsr';
@@ -51,6 +54,14 @@
 	let editGender = $state<'M' | 'F' | 'X'>('M');
 	let editDob = $state('');
 	let editRunnerError = $state<string | null>(null);
+
+	// Erase modal state. `eraseTarget` is either {kind: 'runner', runner}
+	// or {kind: 'account'}. Null means the modal is closed.
+	type EraseTarget = { kind: 'runner'; runner: DSRRunner } | { kind: 'account' };
+	let eraseTarget: EraseTarget | null = $state(null);
+	let eraseConfirm = $state('');
+	let eraseError = $state<string | null>(null);
+	let erasedAccount = $state(false); // post-account-deletion success card
 
 	onMount(async () => {
 		const token = $page.url.searchParams.get('token');
@@ -221,6 +232,55 @@
 			editingRunner = null;
 		} catch (err) {
 			editRunnerError = err instanceof Error ? err.message : String(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	// ── Erase ───────────────────────────────────────────────────────────
+	// Typed-confirmation modal. User must type "RADERA" (sv) / "DELETE"
+	// (en) — we accept either so locale switches mid-flow don't break it.
+
+	const ERASE_CONFIRM_TOKENS = ['RADERA', 'DELETE'];
+
+	function openEraseRunner(r: DSRRunner) {
+		eraseTarget = { kind: 'runner', runner: r };
+		eraseConfirm = '';
+		eraseError = null;
+	}
+	function openEraseAccount() {
+		eraseTarget = { kind: 'account' };
+		eraseConfirm = '';
+		eraseError = null;
+	}
+	function closeErase() {
+		eraseTarget = null;
+	}
+	async function submitErase(e: SubmitEvent) {
+		e.preventDefault();
+		if (!eraseTarget || busy) return;
+		if (!ERASE_CONFIRM_TOKENS.includes(eraseConfirm.trim().toUpperCase())) {
+			eraseError = i18n.m.myData.eraseConfirmMismatch;
+			return;
+		}
+		busy = true;
+		eraseError = null;
+		try {
+			if (eraseTarget.kind === 'runner') {
+				me = await dsrEraseRunner(eraseTarget.runner.id);
+				eraseTarget = null;
+			} else {
+				await dsrEraseAccount();
+				// Server cleared our session cookie. Drop local state and
+				// switch to a dedicated success card — they shouldn't see
+				// the dashboard anymore.
+				eraseTarget = null;
+				erasedAccount = true;
+				me = null;
+				email = '';
+			}
+		} catch (err) {
+			eraseError = err instanceof Error ? err.message : String(err);
 		} finally {
 			busy = false;
 		}
@@ -409,6 +469,15 @@
 									>
 										<Pencil class="size-3.5" />
 									</button>
+									<button
+										type="button"
+										class="btn-icon btn-icon-sm opacity-70 hover:bg-error-100 hover:text-error-700 dark:hover:bg-error-900/40 dark:hover:text-error-200"
+										aria-label={i18n.m.myData.eraseRunner}
+										title={i18n.m.myData.eraseRunner}
+										onclick={() => openEraseRunner(r)}
+									>
+										<Trash2 class="size-3.5" />
+									</button>
 								</div>
 							</div>
 							<label class="flex items-center gap-2 text-xs opacity-90 pt-1">
@@ -458,7 +527,34 @@
 			<p class="text-sm text-error-600 dark:text-error-300">{errorMsg}</p>
 		{/if}
 
-		<p class="text-xs opacity-60 text-center">{i18n.m.myData.moreSoon}</p>
+		<!-- Destructive zone — bordered in error tones so it's visually
+		     distinct from the normal-action cards above. -->
+		<section
+			class="card border border-error-300 dark:border-error-900/60 bg-error-50/40 dark:bg-error-950/30 p-6 space-y-3"
+		>
+			<h2 class="text-lg font-semibold text-error-700 dark:text-error-300">
+				{i18n.m.myData.deleteAccountHeading}
+			</h2>
+			<p class="text-sm opacity-80">{i18n.m.myData.deleteAccountBody}</p>
+			<button
+				type="button"
+				class="btn preset-filled-error-500 inline-flex items-center gap-2"
+				onclick={openEraseAccount}
+			>
+				<Trash2 class="size-4" />
+				{i18n.m.myData.deleteAccountSubmit}
+			</button>
+		</section>
+	{:else if erasedAccount}
+		<div class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-3">
+			<div class="flex items-start gap-3">
+				<CheckCircle2 class="size-6 text-success-600 dark:text-success-300 shrink-0 mt-0.5" />
+				<div>
+					<h2 class="text-lg font-semibold">{i18n.m.myData.deleteAccountDoneHeading}</h2>
+					<p class="opacity-80 mt-1 text-sm">{i18n.m.myData.deleteAccountDoneBody}</p>
+				</div>
+			</div>
+		</div>
 	{/if}
 </section>
 
@@ -556,6 +652,57 @@
 				</button>
 				<button type="submit" class="btn preset-filled-primary-500" disabled={busy}>
 					{i18n.m.myData.save}
+				</button>
+			</div>
+		</form>
+	{/if}
+</Modal>
+
+<!-- Erase modal — used by both the per-runner Trash icon and the
+     destructive-zone "Delete account" button. The form's typed-confirmation
+     blocks accidental fires; the backend's 30-day grace + restore email
+     blocks regret. -->
+<Modal
+	open={eraseTarget !== null}
+	title={eraseTarget?.kind === 'runner'
+		? i18n.m.myData.eraseRunnerHeading
+		: i18n.m.myData.eraseAccountHeading}
+	onClose={closeErase}
+>
+	{#if eraseTarget}
+		<form class="space-y-4" onsubmit={submitErase}>
+			<p class="text-sm">
+				{#if eraseTarget.kind === 'runner'}
+					{i18n.m.myData.eraseRunnerBody(eraseTarget.runner.name)}
+				{:else}
+					{i18n.m.myData.eraseAccountBody}
+				{/if}
+			</p>
+			<ul class="text-xs opacity-80 list-disc list-inside space-y-1">
+				<li>{i18n.m.myData.eraseBulletGrace}</li>
+				<li>{i18n.m.myData.eraseBulletRestoreLink}</li>
+				<li>{i18n.m.myData.eraseBulletHistory}</li>
+			</ul>
+			<label class="block space-y-1">
+				<span class="text-sm font-medium">{i18n.m.myData.eraseConfirmLabel}</span>
+				<input
+					type="text"
+					required
+					bind:value={eraseConfirm}
+					class="input font-mono"
+					autocomplete="off"
+					placeholder="RADERA / DELETE"
+				/>
+			</label>
+			{#if eraseError}
+				<p class="text-sm text-error-600 dark:text-error-300">{eraseError}</p>
+			{/if}
+			<div class="flex items-center justify-end gap-2 pt-2">
+				<button type="button" class="btn preset-tonal-surface" onclick={closeErase} disabled={busy}>
+					{i18n.m.myData.cancel}
+				</button>
+				<button type="submit" class="btn preset-filled-error-500" disabled={busy}>
+					{i18n.m.myData.eraseSubmit}
 				</button>
 			</div>
 		</form>

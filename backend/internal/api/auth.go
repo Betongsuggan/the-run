@@ -109,6 +109,12 @@ func registerAuth(api huma.API, s store.Store, cfg auth.Config) {
 		if !account.IsAdmin || account.PasswordHash == "" {
 			return nil, huma.Error401Unauthorized("invalid credentials")
 		}
+		// An admin who scheduled their own account for deletion can't sign
+		// back in. They can still restore via the magic link in the email
+		// we sent at deletion-request time.
+		if account.DeletionPendingUntil != nil {
+			return nil, huma.Error401Unauthorized("invalid credentials")
+		}
 		if err := auth.EnsureNotLocked(ctx, s, cfg, account.ID, now); err != nil {
 			if errors.Is(err, auth.ErrLockedOut) {
 				return nil, huma.Error429TooManyRequests("too many failed attempts; try again later")

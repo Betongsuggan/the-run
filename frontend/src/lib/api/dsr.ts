@@ -101,6 +101,18 @@ export async function dsrConfirmEmailChange(token: string): Promise<{ email: str
 	return api<{ email: string }>('/dsr/me/email/confirm', { method: 'POST', body: { token } });
 }
 
+export async function dsrEraseRunner(id: string): Promise<DSRMe> {
+	return api<DSRMe>(`/dsr/me/runners/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function dsrEraseAccount(): Promise<{ ok: boolean }> {
+	return api<{ ok: boolean }>('/dsr/me', { method: 'DELETE' });
+}
+
+export async function dsrRestore(token: string): Promise<DSRSession> {
+	return api<DSRSession>('/dsr/me/restore', { method: 'POST', body: { token } });
+}
+
 // dsrExportDownload bypasses the standard api() wrapper because it doesn't
 // return JSON to the caller — it triggers a browser download. We do the
 // fetch directly so we can read the response body as a blob and use a

@@ -59,24 +59,47 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each results as result, idx (result.id)}
+					{#each results as result (result.id)}
+						{@const isFinished = result.status === 'finished' && result.finishSeconds != null}
 						<tr
 							class="cursor-pointer"
 							onclick={() => goto(resolve('/results/[id]', { id: result.id }))}
 						>
 							<td>
-								{#if idx < 3}
-									<RankBadge rank={idx + 1} />
+								{#if isFinished && result.placementOverall != null && result.placementOverall <= 3}
+									<RankBadge rank={result.placementOverall} />
+								{:else if isFinished && result.placementOverall != null}
+									<span class="font-mono text-sm opacity-70">{result.placementOverall}</span>
 								{:else}
-									<span class="font-mono text-sm opacity-70">{idx + 1}</span>
+									<span class="font-mono text-sm opacity-30">—</span>
 								{/if}
 							</td>
 							<td>
 								<div class="font-medium">{result.runner.name}</div>
 							</td>
-							<td class="font-mono">{formatTime(result.finishSeconds)}</td>
+							<td class="font-mono">
+								{#if isFinished && result.finishSeconds != null}
+									{formatTime(result.finishSeconds)}
+								{:else}
+									<!-- Status badge replaces the time/pace for non-finished
+									     rows. DNF is public; DNS is admin/owner-only and
+									     filtered server-side. -->
+									<span
+										class="inline-block rounded px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase {result.status ===
+										'dns'
+											? 'bg-surface-200-800 opacity-80'
+											: 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200'}"
+									>
+										{result.status}
+									</span>
+								{/if}
+							</td>
 							<td class="font-mono text-sm">
-								{formatPace(race.distanceMeters, result.finishSeconds)}
+								{#if isFinished && result.finishSeconds != null}
+									{formatPace(race.distanceMeters, result.finishSeconds)}
+								{:else}
+									<span class="opacity-30">—</span>
+								{/if}
 							</td>
 							<td class="text-xs opacity-80">
 								{formatCategory(result.category) || '—'}

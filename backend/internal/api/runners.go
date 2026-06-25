@@ -114,6 +114,14 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 		out := &listRunnersOutput{}
 		out.Body.Runners = make([]RunnerDTO, 0, len(rs))
 		for _, r := range rs {
+			// Pending-deletion runners vanish from every public and admin
+			// list. They're only reachable via the DSR session of the
+			// owning account (which sees them through /dsr/me) or by the
+			// retention Lambda. This intentional invisibility is what
+			// makes the 30-day grace window meaningful.
+			if r.DeletionPendingUntil != nil {
+				continue
+			}
 			dto := runnerToDTO(r)
 			// Admins and the runner's own account-holder see un-redacted.
 			// Everyone else: opt-out adults and minors are filtered out of
@@ -145,9 +153,15 @@ func registerRunners(api huma.API, s store.Store, authCfg auth.Config) {
 			}
 			return nil, fmt.Errorf("get runner: %w", err)
 		}
-		dto := runnerToDTO(*r)
 		isAdmin := auth.ClaimsFromContext(ctx) != nil
 		ownsRunner := r.AccountID != "" && r.AccountID == auth.DSRSubject(ctx)
+		// Pending-deletion runners are 404 even for the owning DSR session
+		// from this public endpoint — the /my-data dashboard is the one
+		// place that surfaces them, via /dsr/me.
+		if r.DeletionPendingUntil != nil {
+			return nil, huma.Error404NotFound("runner not found")
+		}
+		dto := runnerToDTO(*r)
 		if !isAdmin && !ownsRunner {
 			// If redaction applies (opt-out adult or minor), pretend the
 			// runner doesn't exist rather than returning a stub profile.

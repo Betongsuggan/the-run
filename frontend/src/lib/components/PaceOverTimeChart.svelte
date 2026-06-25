@@ -14,7 +14,10 @@
 
 	const points: Point[] = $derived(
 		results
-			.filter((r) => r.race.discipline === 'run')
+			.filter(
+				(r): r is ResultExpanded & { finishSeconds: number } =>
+					r.race.discipline === 'run' && r.status === 'finished' && r.finishSeconds != null
+			)
 			.map((r) => ({
 				date: r.event.date,
 				secondsPerKm: r.finishSeconds / (r.race.distanceMeters / 1000),

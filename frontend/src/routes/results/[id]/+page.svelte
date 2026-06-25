@@ -97,13 +97,17 @@
 			<StatCard
 				icon={Clock}
 				label={i18n.m.result.finish}
-				value={formatTime(result.finishSeconds)}
+				value={result.finishSeconds != null
+					? formatTime(result.finishSeconds)
+					: result.status.toUpperCase()}
 				tone="primary"
 			/>
 			<StatCard
 				icon={Activity}
 				label={i18n.m.result.pace}
-				value={formatPace(result.race.distanceMeters, result.finishSeconds)}
+				value={result.finishSeconds != null
+					? formatPace(result.race.distanceMeters, result.finishSeconds)
+					: '—'}
 				tone="secondary"
 			/>
 			<StatCard

@@ -24,15 +24,16 @@ func emailSentinelID(email string) string {
 }
 
 type accountItem struct {
-	ID           string       `dynamodbav:"id"`
-	Email        string       `dynamodbav:"email"`
-	PasswordHash string       `dynamodbav:"passwordHash,omitempty"`
-	MFASecret    string       `dynamodbav:"mfaSecret,omitempty"`
-	IsAdmin      bool         `dynamodbav:"isAdmin"`
-	Marketing    *consentItem `dynamodbav:"marketing,omitempty"`
-	Locale       string       `dynamodbav:"locale,omitempty"`
-	CreatedAt    string       `dynamodbav:"createdAt"`
-	LastLoginAt  string       `dynamodbav:"lastLoginAt,omitempty"`
+	ID                   string       `dynamodbav:"id"`
+	Email                string       `dynamodbav:"email"`
+	PasswordHash         string       `dynamodbav:"passwordHash,omitempty"`
+	MFASecret            string       `dynamodbav:"mfaSecret,omitempty"`
+	IsAdmin              bool         `dynamodbav:"isAdmin"`
+	Marketing            *consentItem `dynamodbav:"marketing,omitempty"`
+	Locale               string       `dynamodbav:"locale,omitempty"`
+	CreatedAt            string       `dynamodbav:"createdAt"`
+	LastLoginAt          string       `dynamodbav:"lastLoginAt,omitempty"`
+	DeletionPendingUntil string       `dynamodbav:"deletionPendingUntil,omitempty"`
 	// Discriminator so a Scan can tell primary rows from sentinel rows.
 	Kind string `dynamodbav:"kind"`
 }
@@ -74,6 +75,12 @@ func accountFromItem(item accountItem) models.Account {
 			a.LastLoginAt = &t
 		}
 	}
+	if item.DeletionPendingUntil != "" {
+		t, err := time.Parse(time.RFC3339, item.DeletionPendingUntil)
+		if err == nil {
+			a.DeletionPendingUntil = &t
+		}
+	}
 	return a
 }
 
@@ -97,6 +104,9 @@ func itemFromAccount(a models.Account) accountItem {
 	}
 	if a.LastLoginAt != nil {
 		item.LastLoginAt = a.LastLoginAt.UTC().Format(time.RFC3339)
+	}
+	if a.DeletionPendingUntil != nil {
+		item.DeletionPendingUntil = a.DeletionPendingUntil.UTC().Format(time.RFC3339)
 	}
 	return item
 }
@@ -211,6 +221,68 @@ func (s *DynamoStore) UpdateAccount(ctx context.Context, a models.Account) error
 			return ErrNotFound
 		}
 		return fmt.Errorf("update account: %w", err)
+	}
+	return nil
+}
+
+// ListAccounts returns every primary account row (excludes EMAIL# sentinel
+// rows by filtering on the `kind` attribute). Used by the retention Lambda
+// to find accounts past their grace window. Order is unspecified.
+func (s *DynamoStore) ListAccounts(ctx context.Context) ([]models.Account, error) {
+	items, err := s.scanAll(ctx, s.accountsTable)
+	if err != nil {
+		return nil, fmt.Errorf("scan accounts: %w", err)
+	}
+	accounts := make([]models.Account, 0, len(items))
+	for _, raw := range items {
+		// Skip sentinel rows — they have id="EMAIL#..." and kind="email-sentinel".
+		var it accountItem
+		if err := attributevalue.UnmarshalMap(raw, &it); err != nil {
+			continue
+		}
+		if it.Kind != "account" {
+			continue
+		}
+		accounts = append(accounts, accountFromItem(it))
+	}
+	return accounts, nil
+}
+
+// DeleteAccount removes the primary account row AND its email sentinel in
+// one TransactWriteItems call. Used by the retention Lambda when a soft-
+// deleted account has aged past its grace window. The retention job
+// nulls-out PII first (via UpdateAccount with empty fields), then calls
+// DeleteAccount to drop the row entirely — we'd lose the email reference
+// otherwise.
+func (s *DynamoStore) DeleteAccount(ctx context.Context, accountID, email string) error {
+	if accountID == "" {
+		return errors.New("accountId required")
+	}
+	transactItems := []dynamodbtypes.TransactWriteItem{
+		{
+			Delete: &dynamodbtypes.Delete{
+				TableName: aws.String(s.accountsTable),
+				Key: map[string]dynamodbtypes.AttributeValue{
+					"id": &dynamodbtypes.AttributeValueMemberS{Value: accountID},
+				},
+			},
+		},
+	}
+	if email != "" {
+		transactItems = append(transactItems, dynamodbtypes.TransactWriteItem{
+			Delete: &dynamodbtypes.Delete{
+				TableName: aws.String(s.accountsTable),
+				Key: map[string]dynamodbtypes.AttributeValue{
+					"id": &dynamodbtypes.AttributeValueMemberS{Value: emailSentinelID(email)},
+				},
+			},
+		})
+	}
+	_, err := s.client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
+		TransactItems: transactItems,
+	})
+	if err != nil {
+		return fmt.Errorf("delete account: %w", err)
 	}
 	return nil
 }

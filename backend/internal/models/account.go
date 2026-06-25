@@ -32,6 +32,11 @@ type Account struct {
 	Locale       string
 	CreatedAt    time.Time
 	LastLoginAt  *time.Time
+	// DeletionPendingUntil is set when the user requested account erasure;
+	// the retention job hard-purges PII after this time. Until then the
+	// account is hidden from all reads except DSR (so the user can still
+	// restore) and the retention job.
+	DeletionPendingUntil *time.Time
 }
 
 // NormalizeEmail lowercases and trims an email so two registrations writing

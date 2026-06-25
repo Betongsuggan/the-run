@@ -79,14 +79,15 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 // ─── Runners ──────────────────────────────────────────────────────────
 
 type runnerItem struct {
-	ID            string       `dynamodbav:"id"`
-	AccountID     string       `dynamodbav:"accountId"`
-	NameDobKey    string       `dynamodbav:"nameDobKey"`
-	Name          string       `dynamodbav:"name"`
-	BirthDate     string       `dynamodbav:"birthDate"`
-	Gender        string       `dynamodbav:"gender"`
-	PublicResults *consentItem `dynamodbav:"publicResults,omitempty"`
-	CreatedAt     string       `dynamodbav:"createdAt"`
+	ID                   string       `dynamodbav:"id"`
+	AccountID            string       `dynamodbav:"accountId"`
+	NameDobKey           string       `dynamodbav:"nameDobKey"`
+	Name                 string       `dynamodbav:"name"`
+	BirthDate            string       `dynamodbav:"birthDate"`
+	Gender               string       `dynamodbav:"gender"`
+	PublicResults        *consentItem `dynamodbav:"publicResults,omitempty"`
+	CreatedAt            string       `dynamodbav:"createdAt"`
+	DeletionPendingUntil string       `dynamodbav:"deletionPendingUntil,omitempty"`
 }
 
 func runnerFromItem(item runnerItem) models.Runner {
@@ -105,6 +106,12 @@ func runnerFromItem(item runnerItem) models.Runner {
 			Granted:       item.PublicResults.Granted,
 			At:            at,
 			PolicyVersion: item.PublicResults.PolicyVersion,
+		}
+	}
+	if item.DeletionPendingUntil != "" {
+		t, err := time.Parse(time.RFC3339, item.DeletionPendingUntil)
+		if err == nil {
+			r.DeletionPendingUntil = &t
 		}
 	}
 	return r
@@ -126,6 +133,9 @@ func itemFromRunner(r models.Runner) runnerItem {
 			At:            r.Consents.PublicResults.At.UTC().Format(time.RFC3339),
 			PolicyVersion: r.Consents.PublicResults.PolicyVersion,
 		}
+	}
+	if r.DeletionPendingUntil != nil {
+		item.DeletionPendingUntil = r.DeletionPendingUntil.UTC().Format(time.RFC3339)
 	}
 	return item
 }

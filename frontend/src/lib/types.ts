@@ -37,12 +37,18 @@ export type Split = {
 	timeSeconds: number;
 };
 
+export type RegistrationStatus = 'pending' | 'finished' | 'dnf' | 'dns';
+
 export type Result = {
 	id: ID;
 	raceId: ID;
 	runnerId: ID;
+	// "finished" rows carry finishSeconds + placement; "dnf"/"dns" rows
+	// have neither (server sends finishSeconds as undefined). Frontend
+	// branches on status to render a badge instead of a time.
+	status: RegistrationStatus;
 	bib: string;
-	finishSeconds: number;
+	finishSeconds?: number;
 	category: Category;
 	placementOverall?: number;
 	placementCategory?: number;
@@ -50,8 +56,6 @@ export type Result = {
 	conditions?: string;
 	notes?: string;
 };
-
-export type RegistrationStatus = 'pending' | 'finished' | 'dnf' | 'dns';
 
 export type Registration = {
 	id: ID;

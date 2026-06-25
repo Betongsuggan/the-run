@@ -55,6 +55,12 @@ type Store interface {
 	// row in one TransactWriteItems call. Returns ErrAlreadyExists if newEmail
 	// is taken by another account.
 	ChangeAccountEmail(ctx context.Context, accountID, oldEmail, newEmail string) error
+	// ListAccounts returns every primary account row (sentinel rows excluded).
+	// Used by the retention Lambda to find accounts past their grace window.
+	ListAccounts(ctx context.Context) ([]models.Account, error)
+	// DeleteAccount removes the primary account row and its email sentinel.
+	// Used by the retention Lambda after PII has been nulled out.
+	DeleteAccount(ctx context.Context, accountID, email string) error
 	TouchAccountLastLogin(ctx context.Context, id string, at time.Time) error
 
 	// Auth attempts — failed-login tracking with TTL, drives lockout.

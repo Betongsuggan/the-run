@@ -143,7 +143,8 @@ func TestExpandResult_RedactsResultRunnerID(t *testing.T) {
 			return &runner, nil
 		},
 	}
-	res := ResultDTO{ID: "reg-1", RaceID: "race-1", RunnerID: "r-1", Bib: "42", FinishSeconds: 1800}
+	fs1 := 1800
+	res := ResultDTO{ID: "reg-1", RaceID: "race-1", RunnerID: "r-1", Bib: "42", FinishSeconds: &fs1}
 
 	out, err := expandResult(context.Background(), res, rc)
 	if err != nil {
@@ -155,7 +156,7 @@ func TestExpandResult_RedactsResultRunnerID(t *testing.T) {
 	if out.Runner.ID != "" || out.RunnerID != "" {
 		t.Errorf("runner ID not cleared: runnerDTO.id=%q result.runnerId=%q", out.Runner.ID, out.RunnerID)
 	}
-	if out.Bib != "42" || out.FinishSeconds != 1800 {
+	if out.Bib != "42" || out.FinishSeconds == nil || *out.FinishSeconds != 1800 {
 		t.Errorf("leaderboard fields lost in redaction: %+v", out)
 	}
 }
@@ -173,7 +174,8 @@ func TestExpandResult_MinorAgeFrozenAtRaceDate(t *testing.T) {
 		event:  models.Event{ID: "evt-2", Date: "2026-07-01"}, // kid is 11.
 		runner: func(_ string) (*models.Runner, error) { return &runner, nil },
 	}
-	res := ResultDTO{ID: "reg-2", RaceID: "race-2", RunnerID: "kid-1", FinishSeconds: 600}
+	fs2 := 600
+	res := ResultDTO{ID: "reg-2", RaceID: "race-2", RunnerID: "kid-1", FinishSeconds: &fs2}
 
 	out, err := expandResult(context.Background(), res, rc)
 	if err != nil {

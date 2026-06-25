@@ -388,6 +388,12 @@ func Setup(
 		return nil, err
 	}
 
+	// GDPR retention sweep — scheduled Lambda that purges soft-deleted PII
+	// once its grace window expires. See retention.go.
+	if err := setupRetention(ctx, tables); err != nil {
+		return nil, err
+	}
+
 	return &Resources{
 		API:       api,
 		Function:  fn,

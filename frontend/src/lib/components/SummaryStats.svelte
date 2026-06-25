@@ -10,17 +10,26 @@
 
 	let { results }: { results: ResultExpanded[] } = $props();
 
-	const totalKm = $derived(
-		Math.round((results.reduce((sum, r) => sum + r.race.distanceMeters, 0) / 1000) * 100) / 100
+	// Summary stats are about completed races — DNF/DNS rows don't count
+	// toward total distance, race count, or personal bests.
+	const finished = $derived(
+		results.filter(
+			(r): r is ResultExpanded & { finishSeconds: number } =>
+				r.status === 'finished' && r.finishSeconds != null
+		)
 	);
-	const raceCount = $derived(results.length);
-	const eventCount = $derived(new Set(results.map((r) => r.event.id)).size);
 
-	type Best = { distance: number; result: ResultExpanded };
+	const totalKm = $derived(
+		Math.round((finished.reduce((sum, r) => sum + r.race.distanceMeters, 0) / 1000) * 100) / 100
+	);
+	const raceCount = $derived(finished.length);
+	const eventCount = $derived(new Set(finished.map((r) => r.event.id)).size);
+
+	type Best = { distance: number; result: ResultExpanded & { finishSeconds: number } };
 
 	const bestsByDistance = $derived.by(() => {
 		const map = new SvelteMap<number, Best>();
-		for (const r of results) {
+		for (const r of finished) {
 			if (r.race.discipline !== 'run') continue;
 			const existing = map.get(r.race.distanceMeters);
 			if (!existing || r.finishSeconds < existing.result.finishSeconds) {

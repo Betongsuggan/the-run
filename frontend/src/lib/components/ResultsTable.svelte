@@ -31,6 +31,14 @@
 			: results.filter((r) => r.race.discipline === disciplineFilter)
 	);
 
+	// Comparator helper: DNF/DNS rows (missing finishSeconds) sort to the
+	// end of time/pace orderings regardless of direction. Using Infinity
+	// would flip them to the front under desc, which feels wrong — they're
+	// "no time" not "very slow".
+	function safeTime(r: ResultExpanded): number {
+		return r.finishSeconds ?? Number.POSITIVE_INFINITY;
+	}
+
 	const sorted = $derived.by(() => {
 		const out = [...filtered];
 		out.sort((a, b) => {
@@ -43,10 +51,10 @@
 					cmp = a.race.distanceMeters - b.race.distanceMeters;
 					break;
 				case 'time':
-					cmp = a.finishSeconds - b.finishSeconds;
+					cmp = safeTime(a) - safeTime(b);
 					break;
 				case 'pace':
-					cmp = a.finishSeconds / a.race.distanceMeters - b.finishSeconds / b.race.distanceMeters;
+					cmp = safeTime(a) / a.race.distanceMeters - safeTime(b) / b.race.distanceMeters;
 					break;
 				case 'placement':
 					cmp = (a.placementOverall ?? Infinity) - (b.placementOverall ?? Infinity);
@@ -123,6 +131,7 @@
 			</thead>
 			<tbody>
 				{#each sorted as result (result.id)}
+					{@const isFinished = result.status === 'finished' && result.finishSeconds != null}
 					<tr
 						class="cursor-pointer"
 						onclick={() => goto(resolve('/results/[id]', { id: result.id }))}
@@ -133,9 +142,26 @@
 							<div class="text-xs opacity-70">{result.event.name}</div>
 						</td>
 						<td>{formatDistance(result.race.distanceMeters)}</td>
-						<td class="font-mono">{formatTime(result.finishSeconds)}</td>
+						<td class="font-mono">
+							{#if isFinished && result.finishSeconds != null}
+								{formatTime(result.finishSeconds)}
+							{:else}
+								<span
+									class="inline-block rounded px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase {result.status ===
+									'dns'
+										? 'bg-surface-200-800 opacity-80'
+										: 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200'}"
+								>
+									{result.status}
+								</span>
+							{/if}
+						</td>
 						<td class="font-mono text-sm">
-							{formatPace(result.race.distanceMeters, result.finishSeconds)}
+							{#if isFinished && result.finishSeconds != null}
+								{formatPace(result.race.distanceMeters, result.finishSeconds)}
+							{:else}
+								<span class="opacity-30">—</span>
+							{/if}
 						</td>
 						<td>
 							{#if result.placementOverall}

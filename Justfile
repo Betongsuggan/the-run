@@ -343,11 +343,16 @@ localstack-tables:
 
 # ─── Build ────────────────────────────────────────────────────────────
 
-# Cross-compile the Lambda binary and zip it (backend/dist/lambda.zip)
+# Cross-compile the Lambda binaries and zip them.
+#   dist/lambda.zip         — API Lambda (cmd/api), routed via API Gateway
+#   dist/retention.zip      — GDPR retention sweep (cmd/retention), invoked
+#                              by EventBridge daily
 build-lambda:
     cd backend && rm -rf dist && mkdir -p dist
     cd backend && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o dist/bootstrap ./cmd/api
-    cd backend/dist && zip -9q lambda.zip bootstrap
+    cd backend/dist && zip -9q lambda.zip bootstrap && rm bootstrap
+    cd backend && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o dist/bootstrap ./cmd/retention
+    cd backend/dist && zip -9q retention.zip bootstrap && rm bootstrap
 
 # Build the SvelteKit static site. mode = `local` (.env.local) or `prod` (https://api.<DOMAIN>)
 build-frontend mode='local':

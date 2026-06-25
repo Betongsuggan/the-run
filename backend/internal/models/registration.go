@@ -14,6 +14,7 @@ const (
 	StatusReceived               = "received"
 	StatusPending                = "pending"
 	StatusPendingGuardianConsent = "pending_guardian_consent"
+	StatusPendingDeletion        = "pending_deletion"
 	StatusFinished               = "finished"
 	StatusDNF                    = "dnf"
 	StatusDNS                    = "dns"

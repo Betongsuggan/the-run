@@ -215,6 +215,32 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err != nil {
 			return nil, fmt.Errorf("generate dsr token: %w", err)
 		}
+
+		// Account in the 30-day grace window? Mint a restore token instead
+		// of an access token. The /my-data landing detects the kind and
+		// renders the restore CTA. TTL bounded by the remaining grace
+		// window so a stale restore link can't be used after retention.
+		if account.DeletionPendingUntil != nil {
+			// Give the user at least an hour even if they catch the email
+			// right before retention runs — better UX than an immediately
+			// expired link.
+			restoreTTL := max(time.Until(*account.DeletionPendingUntil), time.Hour)
+			token := models.MagicToken{
+				Kind:      models.TokenKindDSRRestore,
+				ID:        tokenID,
+				AccountID: account.ID,
+				ExpiresAt: now.Add(restoreTTL),
+				CreatedAt: now,
+			}
+			if err := s.CreateMagicToken(ctx, token); err != nil {
+				return nil, fmt.Errorf("store restore token: %w", err)
+			}
+			if err := sendDSRRestoreEmail(ctx, sender, normalized, tokenID, *account.DeletionPendingUntil); err != nil {
+				log.Printf("dsr restore email failed: accountId=%s tokenId=%s err=%v", account.ID, tokenID, err)
+			}
+			return out, nil
+		}
+
 		token := models.MagicToken{
 			Kind:      models.TokenKindDSRAccess,
 			ID:        tokenID,
@@ -328,7 +354,12 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		}
 		filename := "my-data-" + time.Now().UTC().Format("2006-01-02") + ".json"
 		return &dsrExportOutput{
-			ContentType:        "application/json; charset=utf-8",
+			// Plain "application/json" — Huma matches marshalers by exact
+			// content-type string and ships built-in support only for the
+			// suffix-free form. Adding "; charset=utf-8" causes a runtime
+			// panic ("unknown content type"). UTF-8 is the JSON default
+			// per RFC 8259 anyway, so the parameter is redundant.
+			ContentType:        "application/json",
 			ContentDisposition: `attachment; filename="` + filename + `"`,
 			Body:               *body,
 		}, nil
@@ -609,6 +640,256 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		out.Body.Email = newEmail
 		return out, nil
 	})
+
+	// ── Erasure ───────────────────────────────────────────────────────────
+	// Soft-delete with a 30-day grace window. Sets DeletionPendingUntil on
+	// the row(s), cascades non-finished registrations to pending_deletion,
+	// mints a restore token, and emails the user an undo link. Hard purge
+	// happens later via the retention Lambda.
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "dsr-erase-runner",
+		Method:        "DELETE",
+		Path:          "/dsr/me/runners/{id}",
+		Summary:       "Schedule a runner for erasure (30-day undo window)",
+		Tags:          []string{"dsr"},
+		DefaultStatus: http.StatusOK,
+		Middlewares:   dsrMW,
+	}, func(ctx context.Context, in *runnerIDInput) (*dsrMeOutput, error) {
+		accountID := auth.DSRSubject(ctx)
+		runner, err := s.GetRunner(ctx, in.ID)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil, huma.Error404NotFound("runner not found")
+			}
+			return nil, fmt.Errorf("get runner: %w", err)
+		}
+		if runner.AccountID != accountID {
+			return nil, huma.Error403Forbidden("runner does not belong to this account")
+		}
+		now := time.Now().UTC()
+		until := now.Add(deletionGraceWindow)
+		runner.DeletionPendingUntil = &until
+		if err := s.UpdateRunner(ctx, *runner); err != nil {
+			return nil, fmt.Errorf("mark runner pending deletion: %w", err)
+		}
+		// Flip non-finished registrations to pending_deletion so they
+		// vanish from admin pipelines too. Finished results stay as-is —
+		// they'll get anonymized in place when retention runs.
+		if err := cascadePendingDeletion(ctx, s, runner.ID, now); err != nil {
+			return nil, err
+		}
+		if err := issueRestoreLink(ctx, s, sender, accountID, until); err != nil {
+			log.Printf("dsr restore link send failed: accountId=%s err=%v", accountID, err)
+		}
+		body, err := buildDSRMeBody(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		return &dsrMeOutput{Body: *body}, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "dsr-erase-account",
+		Method:        "DELETE",
+		Path:          "/dsr/me",
+		Summary:       "Schedule the entire account + all owned runners for erasure (30-day undo window)",
+		Tags:          []string{"dsr"},
+		DefaultStatus: http.StatusOK,
+		Middlewares:   dsrMW,
+	}, func(ctx context.Context, _ *struct{}) (*dsrLogoutOutput, error) {
+		accountID := auth.DSRSubject(ctx)
+		account, err := s.GetAccountByID(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("get account: %w", err)
+		}
+		now := time.Now().UTC()
+		until := now.Add(deletionGraceWindow)
+
+		// Mark every owned runner first, then the account, so a partial
+		// failure leaves runners hidden but the account still reachable
+		// for retry. Inverse would orphan runners visible while the
+		// account is gone.
+		runners, err := s.ListRunnersByAccount(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("list runners: %w", err)
+		}
+		for i := range runners {
+			runners[i].DeletionPendingUntil = &until
+			if err := s.UpdateRunner(ctx, runners[i]); err != nil {
+				return nil, fmt.Errorf("mark runner pending deletion: %w", err)
+			}
+			if err := cascadePendingDeletion(ctx, s, runners[i].ID, now); err != nil {
+				return nil, err
+			}
+		}
+		account.DeletionPendingUntil = &until
+		if err := s.UpdateAccount(ctx, *account); err != nil {
+			return nil, fmt.Errorf("mark account pending deletion: %w", err)
+		}
+		if err := issueRestoreLink(ctx, s, sender, accountID, until); err != nil {
+			log.Printf("dsr restore link send failed: accountId=%s err=%v", accountID, err)
+		}
+
+		// End the session so the next /my-data visit goes through
+		// request-link → restore-link (or stays gone if they don't act).
+		out := &dsrLogoutOutput{
+			SetCookie: buildDSRCookie(authCfg, "", -1),
+		}
+		out.Body.OK = true
+		return out, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "dsr-restore",
+		Method:        "POST",
+		Path:          "/dsr/me/restore",
+		Summary:       "Redeem a restore token and clear the pending-deletion flag",
+		Description:   "No DSR session required — possession of the restore token (sent to the account's email when deletion was requested) is the proof.",
+		Tags:          []string{"dsr"},
+		DefaultStatus: http.StatusOK,
+	}, func(ctx context.Context, in *dsrVerifyInput) (*dsrSessionOutput, error) {
+		token, err := s.GetMagicToken(ctx, in.Body.Token)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil, huma.Error404NotFound("token not found or expired")
+			}
+			return nil, err
+		}
+		if token.Kind != models.TokenKindDSRRestore {
+			return nil, huma.Error404NotFound("token not found or expired")
+		}
+		now := time.Now().UTC()
+		if token.UsedAt != nil {
+			return nil, huma.Error410Gone("token already used")
+		}
+		if !token.ExpiresAt.IsZero() && now.After(token.ExpiresAt) {
+			return nil, huma.Error410Gone("token expired")
+		}
+		if err := s.MarkMagicTokenUsed(ctx, token.ID, now); err != nil {
+			if errors.Is(err, store.ErrAlreadyExists) {
+				return nil, huma.Error410Gone("token already used")
+			}
+			return nil, err
+		}
+
+		account, err := s.GetAccountByID(ctx, token.AccountID)
+		if err != nil {
+			return nil, fmt.Errorf("get account: %w", err)
+		}
+		// Clear pending-deletion on account.
+		if account.DeletionPendingUntil != nil {
+			account.DeletionPendingUntil = nil
+			if err := s.UpdateAccount(ctx, *account); err != nil {
+				return nil, fmt.Errorf("restore account: %w", err)
+			}
+		}
+		// Clear on each owned runner. Unwind cascaded registrations back
+		// to a sane status — `received` is the catch-all for "active and
+		// pre-race".
+		runners, err := s.ListRunnersByAccount(ctx, account.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list runners: %w", err)
+		}
+		for _, r := range runners {
+			if r.DeletionPendingUntil == nil {
+				continue
+			}
+			r.DeletionPendingUntil = nil
+			if err := s.UpdateRunner(ctx, r); err != nil {
+				return nil, fmt.Errorf("restore runner: %w", err)
+			}
+			if err := uncascadePendingDeletion(ctx, s, r.ID); err != nil {
+				return nil, err
+			}
+		}
+
+		// Issue a fresh DSR session so the restored user lands straight on
+		// their dashboard — same UX as a normal magic-link verify.
+		jwt, err := auth.IssueDSRSession(authCfg, account.ID, now)
+		if err != nil {
+			return nil, fmt.Errorf("issue dsr session: %w", err)
+		}
+		out := &dsrSessionOutput{
+			SetCookie: buildDSRCookie(authCfg, jwt, int(auth.DSRSessionTTL.Seconds())),
+		}
+		out.Body.ID = account.ID
+		out.Body.Email = account.Email
+		return out, nil
+	})
+}
+
+// deletionGraceWindow is how long a soft-deleted account/runner sits before
+// the retention Lambda hard-purges PII. Matches the GDPR plan A1.1 spec.
+const deletionGraceWindow = 30 * 24 * time.Hour
+
+// cascadePendingDeletion flips a runner's IN-FLIGHT registrations to
+// pending_deletion so admins don't see them in pipelines while the runner
+// is in their grace window. Terminal statuses (finished / dnf / dns) keep
+// their own status — they're meaningful race history. The runner row's
+// DeletionPendingUntil flag is what drives anonymization on public
+// leaderboards (see expandResult).
+func cascadePendingDeletion(ctx context.Context, s store.Store, runnerID string, _ time.Time) error {
+	regs, err := s.ListRegistrationsByRunner(ctx, runnerID)
+	if err != nil {
+		return fmt.Errorf("list registrations: %w", err)
+	}
+	for _, reg := range regs {
+		switch reg.Status {
+		case models.StatusFinished, models.StatusDNF, models.StatusDNS, models.StatusPendingDeletion:
+			// Terminal status or already cascaded — leave alone.
+			continue
+		}
+		if err := s.UpdateRegistrationStatus(ctx, reg.ID, models.StatusPendingDeletion); err != nil {
+			return fmt.Errorf("cascade reg %s: %w", reg.ID, err)
+		}
+	}
+	return nil
+}
+
+// uncascadePendingDeletion is the inverse of cascadePendingDeletion. Used by
+// the restore flow. Pushes pending_deletion registrations back to the
+// catch-all `received` status — anything that was finished was never touched
+// so it stays finished.
+func uncascadePendingDeletion(ctx context.Context, s store.Store, runnerID string) error {
+	regs, err := s.ListRegistrationsByRunner(ctx, runnerID)
+	if err != nil {
+		return fmt.Errorf("list registrations: %w", err)
+	}
+	for _, reg := range regs {
+		if reg.Status != models.StatusPendingDeletion {
+			continue
+		}
+		if err := s.UpdateRegistrationStatus(ctx, reg.ID, models.StatusReceived); err != nil {
+			return fmt.Errorf("uncascade reg %s: %w", reg.ID, err)
+		}
+	}
+	return nil
+}
+
+// issueRestoreLink mints a dsr_restore magic token and emails the undo link
+// to the account's email (which is still on file during the grace window).
+func issueRestoreLink(ctx context.Context, s store.Store, sender email.Sender, accountID string, until time.Time) error {
+	account, err := s.GetAccountByID(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("get account for restore link: %w", err)
+	}
+	tokenID, err := newDSRTokenID()
+	if err != nil {
+		return fmt.Errorf("generate restore token: %w", err)
+	}
+	now := time.Now().UTC()
+	token := models.MagicToken{
+		Kind:      models.TokenKindDSRRestore,
+		ID:        tokenID,
+		AccountID: accountID,
+		ExpiresAt: until, // restore window matches the grace window
+		CreatedAt: now,
+	}
+	if err := s.CreateMagicToken(ctx, token); err != nil {
+		return fmt.Errorf("store restore token: %w", err)
+	}
+	return sendDSRRestoreEmail(ctx, sender, account.Email, tokenID, until)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -790,5 +1071,30 @@ func sendEmailChangeConfirmation(ctx context.Context, sender email.Sender, newEm
 		Subject:    "Bekräfta din nya e-postadress — Ingmarsöloppet",
 		TextBody:   body,
 		MessageTag: "dsr-email-change",
+	})
+}
+
+// sendDSRRestoreEmail tells the user their account/runner is queued for
+// deletion and gives them the magic link to undo. Sent the moment a
+// /dsr/me/runners/{id} or /dsr/me DELETE lands, and also re-issued whenever
+// they hit /dsr/request-link while their account is in the grace window.
+func sendDSRRestoreEmail(ctx context.Context, sender email.Sender, toEmail, tokenID string, deletionAt time.Time) error {
+	base := os.Getenv("SITE_BASE_URL")
+	if base == "" {
+		base = "https://running.rydback.net"
+	}
+	link := base + "/my-data/restore?token=" + tokenID
+	body := "Hej!\n\n" +
+		"Vi har tagit emot din begäran om att radera dina uppgifter hos Ingmarsöloppet.\n\n" +
+		"Uppgifterna raderas slutgiltigt den " + deletionAt.Format("2006-01-02") + ". " +
+		"Fram till dess är de dolda men kan återställas.\n\n" +
+		"Klicka på länken nedan om du ångrar dig och vill behålla dina uppgifter:\n\n" +
+		link + "\n\n" +
+		"Behöver du ingen ångerlucka? Gör inget — uppgifterna raderas automatiskt på utsatt datum.\n"
+	return sender.Send(ctx, email.Message{
+		To:         toEmail,
+		Subject:    "Dina uppgifter raderas snart — Ingmarsöloppet",
+		TextBody:   body,
+		MessageTag: "dsr-restore",
 	})
 }

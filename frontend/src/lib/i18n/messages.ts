@@ -241,7 +241,37 @@ const sv = {
 		save: 'Spara',
 		cancel: 'Avbryt',
 		close: 'Stäng',
-		moreSoon: 'Funktion för att ta bort konto kommer snart.'
+		eraseRunner: 'Radera löpare',
+		eraseRunnerHeading: 'Radera löpare?',
+		eraseRunnerBody: (name: string) =>
+			`Du är på väg att radera ${name}. Detta kan ångras inom 30 dagar.`,
+		eraseAccountHeading: 'Radera hela ditt konto?',
+		eraseAccountBody:
+			'Du är på väg att radera ditt konto och alla löpare under det. Detta kan ångras inom 30 dagar.',
+		eraseBulletGrace: 'Uppgifterna döljs direkt och raderas slutgiltigt efter 30 dagar.',
+		eraseBulletRestoreLink: 'Vi mejlar dig en återställningslänk som gäller hela ångerperioden.',
+		eraseBulletHistory:
+			'Tidigare avslutade lopp behålls i resultatlistorna men anonymiseras (namn → "Anonym").',
+		eraseConfirmLabel: 'Skriv RADERA för att bekräfta',
+		eraseConfirmMismatch: 'Bekräftelsen matchar inte. Skriv RADERA (eller DELETE).',
+		eraseSubmit: 'Radera',
+		deleteAccountHeading: 'Radera kontot',
+		deleteAccountBody:
+			'Raderar hela ditt konto + alla löpare under det. Du kan ångra under 30 dagar via mejlet vi skickar dig.',
+		deleteAccountSubmit: 'Radera mitt konto',
+		deleteAccountDoneHeading: 'Kontot är schemalagt för radering',
+		deleteAccountDoneBody:
+			'Vi har skickat dig ett mejl med en återställningslänk. Klicka på den inom 30 dagar om du ändrar dig — annars raderas allt automatiskt.',
+		restoreVerifying: 'Återställer dina uppgifter …',
+		restoreSuccessHeading: 'Dina uppgifter är återställda',
+		restoreSuccessBody:
+			'Raderingen är avbruten och allt är tillbaka som vanligt. Du loggas nu in på Mina uppgifter.',
+		restoreContinue: 'Till Mina uppgifter',
+		restoreErrorHeading: 'Länken kunde inte verifieras',
+		restoreErrorBody:
+			'Länken är ogiltig, har redan använts, eller har förfallit (kanske för att 30-dagarsfönstret tagit slut).',
+		restoreMissingToken: 'Ingen kod fanns i URL:en.',
+		restoreBack: 'Till Mina uppgifter'
 	},
 	admin: {
 		title: 'Admin',
@@ -624,7 +654,37 @@ const en: Catalog = {
 		save: 'Save',
 		cancel: 'Cancel',
 		close: 'Close',
-		moreSoon: 'Account deletion is coming soon.'
+		eraseRunner: 'Erase runner',
+		eraseRunnerHeading: 'Erase runner?',
+		eraseRunnerBody: (name: string) =>
+			`You are about to erase ${name}. This can be undone within 30 days.`,
+		eraseAccountHeading: 'Erase your entire account?',
+		eraseAccountBody:
+			'You are about to erase your account and every runner under it. This can be undone within 30 days.',
+		eraseBulletGrace: 'Your data is hidden immediately and permanently deleted after 30 days.',
+		eraseBulletRestoreLink: "We'll email you a restore link valid for the full undo window.",
+		eraseBulletHistory:
+			'Past finished races stay in the results lists but are anonymized (name → "Anonym").',
+		eraseConfirmLabel: 'Type DELETE to confirm',
+		eraseConfirmMismatch: 'Confirmation does not match. Type DELETE (or RADERA).',
+		eraseSubmit: 'Erase',
+		deleteAccountHeading: 'Delete account',
+		deleteAccountBody:
+			'Erases your entire account + every runner under it. You can undo within 30 days via the email we send you.',
+		deleteAccountSubmit: 'Delete my account',
+		deleteAccountDoneHeading: 'Account scheduled for deletion',
+		deleteAccountDoneBody:
+			"We've emailed you a restore link. Click it within 30 days if you change your mind — otherwise everything is deleted automatically.",
+		restoreVerifying: 'Restoring your data …',
+		restoreSuccessHeading: 'Your data is restored',
+		restoreSuccessBody:
+			"Deletion was undone and everything is back to normal. You're now signed in to My data.",
+		restoreContinue: 'Go to My data',
+		restoreErrorHeading: 'The link could not be verified',
+		restoreErrorBody:
+			'The link is invalid, already used, or expired (perhaps the 30-day window closed).',
+		restoreMissingToken: 'No token was supplied in the URL.',
+		restoreBack: 'Back to My data'
 	},
 	admin: {
 		title: 'Admin',
