@@ -110,7 +110,22 @@ type dsrAccountDTO struct {
 	Locale           string         `json:"locale,omitempty"`
 	CreatedAt        string         `json:"createdAt"`
 	MarketingConsent *dsrConsentDTO `json:"marketingConsent,omitempty"`
+	// DeletionPendingUntil is set when the account is in the 30-day grace
+	// window after a soft-delete. Dashboard renders a "scheduled for
+	// deletion on <date>" banner with a cancel button. Absent for active
+	// accounts.
+	DeletionPendingUntil string `json:"deletionPendingUntil,omitempty"`
+	// InactivityDeletionAt is the date this account would be flagged for
+	// auto-deletion if no further activity occurs. Computed as the latest
+	// of (createdAt, lastLoginAt, latest registration, latest finished
+	// race) + 36 months. Surfaces on /my-data so the user can see when
+	// they need to come back. Resets on every login / new registration.
+	InactivityDeletionAt string `json:"inactivityDeletionAt,omitempty"`
 }
+
+// accountInactivityWindowMonths matches sweepInactiveAccounts in the
+// retention Lambda. Bumping one requires bumping the other.
+const accountInactivityWindowMonths = 36
 
 type dsrRunnerDTO struct {
 	ID                   string         `json:"id"`
@@ -119,7 +134,25 @@ type dsrRunnerDTO struct {
 	BirthDate            string         `json:"birthDate"`
 	CreatedAt            string         `json:"createdAt"`
 	PublicResultsConsent *dsrConsentDTO `json:"publicResultsConsent,omitempty"`
+	// Retention tells the user when (or whether) this runner's PII will
+	// be auto-anonymized by the retention sweep. Policy is one of:
+	//   "kept-indefinitely" — consenting runner, race history preserved
+	//   "anonymizes-at"     — non-consenting runner, sliding 36mo window
+	//                          from last finished race; AnonymizesAt is set
+	//   "no-timer"          — runner has no finished races yet, no timer
+	Retention dsrRunnerRetentionDTO `json:"retention"`
 }
+
+type dsrRunnerRetentionDTO struct {
+	Policy           string `json:"policy"`
+	AnonymizesAt     string `json:"anonymizesAt,omitempty"`
+	LastFinishedRace string `json:"lastFinishedRace,omitempty"`
+}
+
+// nonConsentingRunnerWindowMonths mirrors the retention Lambda's constant.
+// Kept in sync by hand — there are only two call sites and changing the
+// window is a deliberate policy decision either way.
+const nonConsentingRunnerWindowMonths = 36
 
 type dsrConsentDTO struct {
 	Granted       bool   `json:"granted"`
@@ -230,30 +263,13 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 			return nil, fmt.Errorf("generate dsr token: %w", err)
 		}
 
-		// Account in the 30-day grace window? Mint a restore token instead
-		// of an access token. The /my-data landing detects the kind and
-		// renders the restore CTA. TTL bounded by the remaining grace
-		// window so a stale restore link can't be used after retention.
-		if account.DeletionPendingUntil != nil {
-			// Give the user at least an hour even if they catch the email
-			// right before retention runs — better UX than an immediately
-			// expired link.
-			restoreTTL := max(time.Until(*account.DeletionPendingUntil), time.Hour)
-			token := models.MagicToken{
-				Kind:      models.TokenKindDSRRestore,
-				ID:        tokenID,
-				AccountID: account.ID,
-				ExpiresAt: now.Add(restoreTTL),
-				CreatedAt: now,
-			}
-			if err := s.CreateMagicToken(ctx, token); err != nil {
-				return nil, fmt.Errorf("store restore token: %w", err)
-			}
-			if err := sendDSRRestoreEmail(ctx, sender, normalized, tokenID, *account.DeletionPendingUntil); err != nil {
-				log.Printf("dsr restore email failed: accountId=%s tokenId=%s err=%v", account.ID, tokenID, err)
-			}
-			return out, nil
-		}
+		// Note: even accounts in the 30-day grace window get a regular
+		// access link here. They're allowed to log in, browse their data,
+		// and decide whether to restore — the dashboard surfaces a
+		// pending-deletion banner with a one-click "cancel deletion"
+		// button (see /dsr/me/cancel-deletion). Restore tokens are still
+		// issued at deletion time so an unauthenticated undo path exists
+		// via the deletion email, but request-link itself stays neutral.
 
 		token := models.MagicToken{
 			Kind:      models.TokenKindDSRAccess,
@@ -315,6 +331,12 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		jwt, err := auth.IssueDSRSession(authCfg, account.ID, now)
 		if err != nil {
 			return nil, fmt.Errorf("issue dsr session: %w", err)
+		}
+		// Touch lastLoginAt so the inactivity-retention timer (A1.3) treats
+		// this as activity. Best-effort: a write failure shouldn't block
+		// the session — it just means the timer won't reset this round.
+		if err := s.TouchAccountLastLogin(ctx, account.ID, now); err != nil {
+			log.Printf("dsr verify: touch lastLoginAt failed: accountId=%s err=%v", account.ID, err)
 		}
 		recorder.Record(ctx, models.AuditRow{
 			AccountID:  account.ID,
@@ -910,6 +932,71 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		out.Body.Email = account.Email
 		return out, nil
 	})
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "dsr-cancel-deletion",
+		Method:        "POST",
+		Path:          "/dsr/me/cancel-deletion",
+		Summary:       "Cancel a pending account deletion from within a logged-in session",
+		Description:   "Session-authenticated counterpart to /dsr/me/restore. Same effect (clears DeletionPendingUntil on the account + all owned runners, un-cascades pending_deletion registrations) but trusts the DSR session cookie rather than a magic-link token. Used by the dashboard's 'cancel deletion' banner so users who logged in via a fresh magic link don't have to chase the original deletion email.",
+		Tags:          []string{"dsr"},
+		DefaultStatus: http.StatusOK,
+		Middlewares:   dsrMW,
+	}, func(ctx context.Context, _ *struct{}) (*dsrMeOutput, error) {
+		accountID := auth.DSRSubject(ctx)
+		now := time.Now().UTC()
+
+		account, err := s.GetAccountByID(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("get account: %w", err)
+		}
+		// Idempotent: if the account isn't actually pending deletion (maybe
+		// they clicked twice, maybe the magic-link restore already ran),
+		// just return the current state.
+		if account.DeletionPendingUntil == nil {
+			body, err := buildDSRMeBody(ctx, s, recorder)
+			if err != nil {
+				return nil, err
+			}
+			return &dsrMeOutput{Body: *body}, nil
+		}
+
+		account.DeletionPendingUntil = nil
+		if err := s.UpdateAccount(ctx, *account); err != nil {
+			return nil, fmt.Errorf("clear account pending deletion: %w", err)
+		}
+		runners, err := s.ListRunnersByAccount(ctx, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("list runners: %w", err)
+		}
+		for _, r := range runners {
+			if r.DeletionPendingUntil == nil {
+				continue
+			}
+			r.DeletionPendingUntil = nil
+			if err := s.UpdateRunner(ctx, r); err != nil {
+				return nil, fmt.Errorf("restore runner: %w", err)
+			}
+			if err := uncascadePendingDeletion(ctx, s, r.ID); err != nil {
+				return nil, err
+			}
+		}
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  accountID,
+			At:         now,
+			Action:     "account.restored",
+			Actor:      "user",
+			TargetType: "account",
+			TargetID:   accountID,
+			Summary:    "Cancelled pending erasure from My data",
+		})
+
+		body, err := buildDSRMeBody(ctx, s, recorder)
+		if err != nil {
+			return nil, err
+		}
+		return &dsrMeOutput{Body: *body}, nil
+	})
 }
 
 // deletionGraceWindow is how long a soft-deleted account/runner sits before
@@ -1026,9 +1113,49 @@ func buildDSRMeBody(ctx context.Context, s store.Store, recorder audit.Recorder)
 		Runners:       make([]dsrRunnerDTO, 0, len(runners)),
 		Registrations: make([]dsrRegistrationDTO, 0, len(registrations)),
 	}
+	if account.DeletionPendingUntil != nil {
+		body.Account.DeletionPendingUntil = account.DeletionPendingUntil.UTC().Format(time.RFC3339)
+	}
 	if c := consentToDTO(account.Consents.Marketing); c != nil {
 		body.Account.MarketingConsent = c
 	}
+	// Compute per-runner "most recent finished race date" once, sharing a
+	// race+event cache across runners. Used below to derive each runner's
+	// retention status.
+	lastFinished := make(map[string]time.Time, len(runners))
+	raceCache := map[string]*models.Race{}
+	eventCache := map[string]*models.Event{}
+	for _, reg := range registrations {
+		if reg.Status != models.StatusFinished {
+			continue
+		}
+		race, ok := raceCache[reg.RaceID]
+		if !ok {
+			r, err := s.GetRace(ctx, reg.RaceID)
+			if err != nil || r == nil {
+				continue
+			}
+			race = r
+			raceCache[reg.RaceID] = r
+		}
+		event, ok := eventCache[race.EventID]
+		if !ok {
+			e, err := s.GetEvent(ctx, race.EventID)
+			if err != nil || e == nil {
+				continue
+			}
+			event = e
+			eventCache[race.EventID] = e
+		}
+		date, err := time.Parse("2006-01-02", event.Date)
+		if err != nil {
+			continue
+		}
+		if existing, ok := lastFinished[reg.RunnerID]; !ok || date.After(existing) {
+			lastFinished[reg.RunnerID] = date
+		}
+	}
+
 	for _, r := range runners {
 		dto := dsrRunnerDTO{
 			ID:        r.ID,
@@ -1040,8 +1167,31 @@ func buildDSRMeBody(ctx context.Context, s store.Store, recorder audit.Recorder)
 		if c := consentToDTO(r.Consents.PublicResults); c != nil {
 			dto.PublicResultsConsent = c
 		}
+		dto.Retention = computeRunnerRetention(r, lastFinished[r.ID])
 		body.Runners = append(body.Runners, dto)
 	}
+
+	// Compute account-level inactivity-deletion date. The sweep counts an
+	// account as "active" if any of: it was created within the window,
+	// last login within the window, any registration created within the
+	// window, any finished race within the window. So the latest of
+	// those four points + the window = when it'd be flagged. Mirrors the
+	// rules in sweepInactiveAccounts.
+	latestActivity := account.CreatedAt
+	if account.LastLoginAt != nil && account.LastLoginAt.After(latestActivity) {
+		latestActivity = *account.LastLoginAt
+	}
+	for _, reg := range registrations {
+		if reg.CreatedAt.After(latestActivity) {
+			latestActivity = reg.CreatedAt
+		}
+	}
+	for _, t := range lastFinished {
+		if t.After(latestActivity) {
+			latestActivity = t
+		}
+	}
+	body.Account.InactivityDeletionAt = latestActivity.AddDate(0, accountInactivityWindowMonths, 0).UTC().Format(time.RFC3339)
 	for _, reg := range registrations {
 		body.Registrations = append(body.Registrations, dsrRegistrationDTO{
 			ID:            reg.ID,
@@ -1072,6 +1222,36 @@ func buildDSRMeBody(ctx context.Context, s store.Store, recorder audit.Recorder)
 	}
 
 	return body, nil
+}
+
+// computeRunnerRetention summarizes when (or whether) the retention sweep
+// will anonymize this runner's PII. Matches the rules in
+// cmd/retention/sweepNonConsentingRunners:
+//   - consenting runner → kept indefinitely as race history
+//   - non-consenting runner with a finished race → anonymized at
+//     lastFinishedRace + nonConsentingRunnerWindowMonths months
+//   - runner with no finished races → no timer running yet
+//
+// The "no-timer" case includes both consenting runners with no races
+// (which would be kept indefinitely if they ever race) and non-consenting
+// runners with no races (no policy hook to trigger anonymization). The
+// frontend distinguishes by also reading publicResultsConsent.granted.
+func computeRunnerRetention(r models.Runner, lastFinished time.Time) dsrRunnerRetentionDTO {
+	out := dsrRunnerRetentionDTO{}
+	if !lastFinished.IsZero() {
+		out.LastFinishedRace = lastFinished.UTC().Format("2006-01-02")
+	}
+	if lastFinished.IsZero() {
+		out.Policy = "no-timer"
+		return out
+	}
+	if r.Consents.PublicResults.Granted {
+		out.Policy = "kept-indefinitely"
+		return out
+	}
+	out.Policy = "anonymizes-at"
+	out.AnonymizesAt = lastFinished.AddDate(0, nonConsentingRunnerWindowMonths, 0).UTC().Format("2006-01-02")
+	return out
 }
 
 func consentToDTO(c models.Consent) *dsrConsentDTO {

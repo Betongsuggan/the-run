@@ -19,7 +19,19 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
+	"github.com/BirgerRydback/the-run/backend/internal/ratelimit"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
+)
+
+// Per-IP rate limit on POST /registrations (GDPR A0.7). Pair the honeypot
+// (form-level) and the API Gateway stage throttle (aggregate) with a
+// sliding 1-minute window per source IP. Numbers match the plan: 5 attempts
+// per 60s leaves >50× headroom over a 500-runner race's peak signup rate
+// (typically a few /minute), and rejects a single hostile client that
+// would otherwise burn the stage-wide budget.
+const (
+	registerRateLimitMax    = 5
+	registerRateLimitWindow = 60 * time.Second
 )
 
 // guardianTokenTTL is how long a parental-consent magic link stays valid.
@@ -34,7 +46,12 @@ const guardianTokenTTL = 7 * 24 * time.Hour
 const underAgeThreshold = 13
 
 type RegisterInput struct {
-	Body struct {
+	// API Gateway HTTP API v2 → Lambda fills X-Forwarded-For with the
+	// client IP at the leftmost position. Used for the per-IP rate limit
+	// below; if empty (e.g. direct invocation in a test), we skip the
+	// throttle rather than fail closed.
+	XForwardedFor string `header:"X-Forwarded-For"`
+	Body          struct {
 		Name        string `json:"name" minLength:"1" maxLength:"120" doc:"Full name of the registrant"`
 		Email       string `json:"email" format:"email" maxLength:"254" doc:"Contact email — used for race comms and to manage your data"`
 		DateOfBirth string `json:"dateOfBirth" format:"date" doc:"Birth date (YYYY-MM-DD)"`
@@ -84,6 +101,24 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sen
 			out.Body.ID = "ignored"
 			out.Body.Status = "received"
 			return out, nil
+		}
+
+		// Per-IP rate limit (GDPR A0.7). Record-then-check so concurrent
+		// bursts can't all sneak past a zero-count Check. A record failure
+		// is non-fatal — we'd rather let the user through than fail the
+		// signup on a transient DynamoDB blip.
+		if ip := clientIPFromForwarded(in.XForwardedFor); ip != "" {
+			bucket := "register#" + ip
+			now := time.Now().UTC()
+			if err := ratelimit.Record(ctx, s, bucket, now, registerRateLimitWindow); err != nil {
+				log.Printf("rate limit record failed: bucket=%s err=%v", bucket, err)
+			}
+			if err := ratelimit.Check(ctx, s, bucket, registerRateLimitMax, now); err != nil {
+				if errors.Is(err, ratelimit.ErrRateLimited) {
+					return nil, huma.Error429TooManyRequests("too many registration attempts — please wait a minute and try again")
+				}
+				log.Printf("rate limit check failed: bucket=%s err=%v", bucket, err)
+			}
 		}
 
 		addr, err := mail.ParseAddress(in.Body.Email)
@@ -258,6 +293,22 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sen
 		out.Body.Status = reg.Status
 		return out, nil
 	})
+}
+
+// clientIPFromForwarded extracts the originating client IP from the
+// `X-Forwarded-For` header value. API Gateway puts the public client IP
+// leftmost and appends proxy hops on the way in. Returns the empty string
+// when the header is missing or unparseable so callers can short-circuit
+// the rate-limit check rather than fail closed.
+func clientIPFromForwarded(header string) string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return ""
+	}
+	if idx := strings.IndexByte(header, ','); idx >= 0 {
+		header = header[:idx]
+	}
+	return strings.TrimSpace(header)
 }
 
 // newConsentTokenID returns a 32-byte (256-bit) random opaque string,

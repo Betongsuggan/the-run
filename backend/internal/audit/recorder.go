@@ -28,10 +28,15 @@ import (
 // the user-facing "Your activity" view. Implementations are best-effort
 // on the write side: a failed write logs but doesn't return — the calling
 // business logic should never fail because the audit log is unreachable.
-// Reads return an error on failure (callers can render an empty list).
+// Reads and purges return an error on failure.
 type Recorder interface {
 	Record(ctx context.Context, row models.AuditRow)
 	ListByAccount(ctx context.Context, accountID string, limit int32) ([]models.AuditRow, error)
+	// PurgeBefore deletes audit rows whose At is strictly less than the
+	// given cutoff. Used by the retention sweep (GDPR A1.3) to roll
+	// audit history off after 24 months. Returns the count purged so
+	// the sweep can log it; non-fatal on partial failure.
+	PurgeBefore(ctx context.Context, before time.Time) (int, error)
 }
 
 // NewRecorderFromEnv returns a DynamoRecorder when AUDIT_TABLE_NAME is set,
@@ -73,6 +78,11 @@ func (NoOpRecorder) Record(_ context.Context, row models.AuditRow) {
 // LocalStack table.
 func (NoOpRecorder) ListByAccount(_ context.Context, _ string, _ int32) ([]models.AuditRow, error) {
 	return nil, nil
+}
+
+// PurgeBefore is a no-op in NoOp mode (no table to purge from).
+func (NoOpRecorder) PurgeBefore(_ context.Context, _ time.Time) (int, error) {
+	return 0, nil
 }
 
 // DynamoRecorder writes rows to the the-run-audit table.
@@ -126,6 +136,63 @@ func (r *DynamoRecorder) Record(ctx context.Context, row models.AuditRow) {
 	if err != nil {
 		log.Printf("audit: put failed: account=%s action=%s err=%v", row.AccountID, row.Action, err)
 	}
+}
+
+// PurgeBefore scans the audit table for rows older than `before` and
+// deletes them. Pagination follows DynamoDB's LastEvaluatedKey contract
+// since Scan caps at 1 MB per page; the audit table can grow well past
+// that even at our scale.
+//
+// We Scan rather than Query because the table's PK is accountId — there
+// is no global secondary index on `at` to query against. A daily sweep
+// over an audit table at our scale (estimate: low-MB per year) is cheap
+// in DynamoDB on-demand pricing terms, so we don't optimise further.
+func (r *DynamoRecorder) PurgeBefore(ctx context.Context, before time.Time) (int, error) {
+	cutoff := before.UTC().Format(time.RFC3339Nano)
+	deleted := 0
+	var lastKey map[string]dynamodbtypes.AttributeValue
+	for {
+		out, err := r.client.Scan(ctx, &dynamodb.ScanInput{
+			TableName:        aws.String(r.table),
+			FilterExpression: aws.String("#at < :cutoff"),
+			ExpressionAttributeNames: map[string]string{
+				"#at": "at",
+			},
+			ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+				":cutoff": &dynamodbtypes.AttributeValueMemberS{Value: cutoff},
+			},
+			ExclusiveStartKey: lastKey,
+		})
+		if err != nil {
+			return deleted, fmt.Errorf("scan audit: %w", err)
+		}
+		for _, item := range out.Items {
+			var it auditItem
+			if err := attributevalue.UnmarshalMap(item, &it); err != nil {
+				continue
+			}
+			if it.AccountID == "" || it.At == "" {
+				continue
+			}
+			_, err := r.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+				TableName: aws.String(r.table),
+				Key: map[string]dynamodbtypes.AttributeValue{
+					"accountId": &dynamodbtypes.AttributeValueMemberS{Value: it.AccountID},
+					"at":        &dynamodbtypes.AttributeValueMemberS{Value: it.At},
+				},
+			})
+			if err != nil {
+				log.Printf("audit: purge delete failed: account=%s at=%s err=%v", it.AccountID, it.At, err)
+				continue
+			}
+			deleted++
+		}
+		if out.LastEvaluatedKey == nil {
+			break
+		}
+		lastKey = out.LastEvaluatedKey
+	}
+	return deleted, nil
 }
 
 // ListByAccount returns the most recent `limit` audit rows for an account,

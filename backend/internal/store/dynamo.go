@@ -34,6 +34,7 @@ type DynamoStore struct {
 	accountsTable      string
 	authAttemptsTable  string
 	magicTokensTable   string
+	rateLimitTable     string
 }
 
 // NewDynamoStoreFromEnv reads RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME,
@@ -48,8 +49,9 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	accountsTable := os.Getenv("ACCOUNTS_TABLE_NAME")
 	authAttemptsTable := os.Getenv("AUTH_ATTEMPTS_TABLE_NAME")
 	magicTokensTable := os.Getenv("MAGIC_TOKENS_TABLE_NAME")
-	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || magicTokensTable == "" {
-		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, MAGIC_TOKENS_TABLE_NAME must all be set")
+	rateLimitTable := os.Getenv("RATE_LIMIT_TABLE_NAME")
+	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || magicTokensTable == "" || rateLimitTable == "" {
+		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, MAGIC_TOKENS_TABLE_NAME, RATE_LIMIT_TABLE_NAME must all be set")
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
@@ -73,6 +75,7 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 		accountsTable:      accountsTable,
 		authAttemptsTable:  authAttemptsTable,
 		magicTokensTable:   magicTokensTable,
+		rateLimitTable:     rateLimitTable,
 	}, nil
 }
 

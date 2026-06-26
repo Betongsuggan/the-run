@@ -24,6 +24,7 @@
 		dsrRequestEmailChange,
 		dsrEraseRunner,
 		dsrEraseAccount,
+		dsrCancelDeletion,
 		type DSRMe,
 		type DSRRunner,
 		type DSRAuditRow
@@ -238,6 +239,45 @@
 		}
 	}
 
+	// ── Cancel pending deletion ─────────────────────────────────────────
+	// Counterpart to the dedicated /my-data/restore route, but for users
+	// who logged in normally and want to back out of a prior delete from
+	// inside the dashboard.
+
+	async function onCancelDeletion() {
+		if (busy) return;
+		busy = true;
+		try {
+			me = await dsrCancelDeletion();
+		} catch (err) {
+			errorMsg = err instanceof Error ? err.message : String(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	// formatRetentionDate handles the YYYY-MM-DD strings the backend
+	// emits for the retention block (date-only, not full ISO timestamps).
+	function formatRetentionDate(d: string): string {
+		const dt = new Date(d + 'T00:00:00Z');
+		if (Number.isNaN(dt.getTime())) return d;
+		return dt.toLocaleDateString(i18n.locale === 'sv' ? 'sv-SE' : 'en-GB', {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+	}
+
+	function formatDeletionDate(iso: string): string {
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return iso;
+		return d.toLocaleDateString(i18n.locale === 'sv' ? 'sv-SE' : 'en-GB', {
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+	}
+
 	// ── Erase ───────────────────────────────────────────────────────────
 	// Typed-confirmation modal. User must type "RADERA" (sv) / "DELETE"
 	// (en) — we accept either so locale switches mid-flow don't break it.
@@ -397,6 +437,34 @@
 			</button>
 		</div>
 	{:else if phase === 'dashboard' && me}
+		<!-- Pending-deletion banner. Surfaces at the very top so the user
+		     can't miss that their data is queued for erasure. Cancel is a
+		     single click — no confirmation modal — since the destructive
+		     action was already confirmed when they originally deleted. -->
+		{#if me.account.deletionPendingUntil}
+			<div
+				class="card border border-error-300 dark:border-error-900/60 bg-error-50/40 dark:bg-error-950/30 p-4 sm:p-5 flex items-start gap-3"
+			>
+				<AlertCircle class="size-5 text-error-600 dark:text-error-300 shrink-0 mt-0.5" />
+				<div class="min-w-0 flex-1 space-y-2">
+					<p class="font-semibold text-error-700 dark:text-error-300">
+						{i18n.m.myData.pendingDeletionHeading(
+							formatDeletionDate(me.account.deletionPendingUntil)
+						)}
+					</p>
+					<p class="text-sm opacity-80">{i18n.m.myData.pendingDeletionBody}</p>
+					<button
+						type="button"
+						class="btn preset-filled-primary-500"
+						onclick={onCancelDeletion}
+						disabled={busy}
+					>
+						{i18n.m.myData.pendingDeletionCancel}
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<!-- You -->
 		<section class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-4">
 			<header class="flex items-center justify-between gap-3">
@@ -471,6 +539,17 @@
 					</label>
 				</dd>
 			</dl>
+			{#if me.account.inactivityDeletionAt && !me.account.deletionPendingUntil}
+				<!-- Inactivity countdown — surfaced only when the account isn't
+				     already in a pending-deletion state (the banner above
+				     covers that). Italic + muted so it sits as soft
+				     informational footer rather than alarming the user. -->
+				<p class="text-xs italic opacity-70 pt-3 mt-3 border-t border-surface-200-800">
+					{i18n.m.myData.inactivityNote(
+						formatRetentionDate(me.account.inactivityDeletionAt.slice(0, 10))
+					)}
+				</p>
+			{/if}
 		</section>
 
 		<!-- Runners -->
@@ -535,6 +614,22 @@
 									)}
 								</div>
 							{/if}
+							<!-- Retention status. Differentiated wording per case:
+							     consenting runners are told their history is kept;
+							     non-consenting ones see the exact date PII goes away.
+							     New runners (no finished races) see a soft "no timer
+							     yet" so they know the policy exists without alarm. -->
+							<div class="text-xs opacity-70 pt-0.5 border-t border-surface-200-800 mt-2 pt-2">
+								{#if r.retention.policy === 'kept-indefinitely'}
+									{i18n.m.myData.retentionIndefinite}
+								{:else if r.retention.policy === 'anonymizes-at' && r.retention.anonymizesAt}
+									{i18n.m.myData.retentionAnonymizesAt(
+										formatRetentionDate(r.retention.anonymizesAt)
+									)}
+								{:else}
+									{i18n.m.myData.retentionNoTimer}
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -542,31 +637,56 @@
 		</section>
 
 		<!-- Your activity — chronological audit log of what we've done with
-		     your data. Hidden when the list is empty so a brand-new account
-		     doesn't see a hollow section. -->
-		{#if me.recentAudit && me.recentAudit.length > 0}
+		     your data. We render it whenever there's either (a) at least
+		     one audit row OR (b) a pending deletion to surface as an
+		     upcoming event. That second case covers accounts deleted
+		     before the audit recorder shipped, plus the general "this is
+		     the next thing scheduled to happen to your data" framing. -->
+		{#if (me.recentAudit && me.recentAudit.length > 0) || me.account.deletionPendingUntil}
 			<section
 				class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-3"
 			>
 				<h2 class="text-lg font-semibold">{i18n.m.myData.activityHeading}</h2>
 				<p class="text-xs opacity-70">{i18n.m.myData.activityBody}</p>
 				<ol class="space-y-2 text-sm">
-					{#each me.recentAudit as row, idx (row.at + '-' + idx)}
-						<li class="flex items-start gap-3 border-l-2 border-surface-300-700 pl-3 py-0.5">
+					{#if me.account.deletionPendingUntil}
+						<!-- Upcoming event — visually distinct (error tone +
+						     dashed border) so it's clear this hasn't happened
+						     yet but is on the schedule. -->
+						<li
+							class="flex items-start gap-3 border-l-2 border-dashed border-error-400 dark:border-error-500 pl-3 py-0.5"
+						>
 							<time class="font-mono text-xs opacity-60 shrink-0 w-32 pt-0.5">
-								{formatActivityTimestamp(row.at)}
+								{formatActivityTimestamp(me.account.deletionPendingUntil)}
 							</time>
 							<div class="min-w-0 flex-1">
-								<div>{activityLabel(row)}</div>
-								{#if row.summary && row.summary !== activityLabel(row)}
-									<div class="text-xs opacity-70 mt-0.5">{row.summary}</div>
-								{/if}
+								<div class="text-error-700 dark:text-error-300">
+									{i18n.m.myData.activityUpcomingDeletion}
+								</div>
 								<div class="text-[10px] opacity-50 uppercase tracking-wide mt-0.5">
-									{formatActor(row.actor)}
+									{i18n.m.myData.activityUpcoming}
 								</div>
 							</div>
 						</li>
-					{/each}
+					{/if}
+					{#if me.recentAudit && me.recentAudit.length > 0}
+						{#each me.recentAudit as row, idx (row.at + '-' + idx)}
+							<li class="flex items-start gap-3 border-l-2 border-surface-300-700 pl-3 py-0.5">
+								<time class="font-mono text-xs opacity-60 shrink-0 w-32 pt-0.5">
+									{formatActivityTimestamp(row.at)}
+								</time>
+								<div class="min-w-0 flex-1">
+									<div>{activityLabel(row)}</div>
+									{#if row.summary && row.summary !== activityLabel(row)}
+										<div class="text-xs opacity-70 mt-0.5">{row.summary}</div>
+									{/if}
+									<div class="text-[10px] opacity-50 uppercase tracking-wide mt-0.5">
+										{formatActor(row.actor)}
+									</div>
+								</div>
+							</li>
+						{/each}
+					{/if}
 				</ol>
 			</section>
 		{/if}

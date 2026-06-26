@@ -68,6 +68,13 @@ type Store interface {
 	CountActiveAuthAttempts(ctx context.Context, accountID string, now time.Time) (int, error)
 	ClearAuthAttempts(ctx context.Context, accountID string) error
 
+	// Rate-limit table — generic per-bucket sliding-window counter backing
+	// the GDPR A0.7 per-IP throttle on /registrations. `bucket` is opaque;
+	// callers namespace it (e.g. "register#<ip>"). Rows are TTL'd to the
+	// rate-limit window.
+	RecordRateLimitHit(ctx context.Context, bucket string, at time.Time, ttl time.Duration) error
+	CountActiveRateLimitHits(ctx context.Context, bucket string, now time.Time) (int, error)
+
 	// Runners
 	// RunnerByNameDOB may return multiple Runner records — one per Account
 	// that has someone with this (name, DOB). Callers filter by AccountID.

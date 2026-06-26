@@ -9,6 +9,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/BirgerRydback/the-run/infra/database"
+	"github.com/BirgerRydback/the-run/infra/email"
 )
 
 // setupRetention provisions the GDPR A1.1.3 retention sweep:
@@ -21,6 +22,8 @@ import (
 func setupRetention(
 	ctx *pulumi.Context,
 	tables *database.Tables,
+	em *email.Resources,
+	siteFQDN string,
 ) error {
 	assumePolicy, err := json.Marshal(map[string]any{
 		"Version": "2012-10-17",
@@ -50,16 +53,28 @@ func setupRetention(
 		return err
 	}
 
-	// DynamoDB permissions — scoped to the same tables the API Lambda uses.
-	// Retention reads + writes + deletes on accounts, runners, registrations.
-	// Magic tokens are TTL-driven so we don't need to write to them here.
+	// DynamoDB permissions. The retention Lambda reads + writes + deletes
+	// across the data tables (sweep semantics: scan, anonymize, delete).
+	//
+	//   accounts, runners, registrations — soft-delete cleanup + time-based
+	//     anonymization
+	//   magic tokens                     — drop tokens for purged accounts
+	//   events, races                    — read-only, to resolve race dates
+	//                                      for the 36-month sliding window
+	//   audit                            — read+write to purge rows older
+	//                                      than 24 months + write
+	//                                      retention.runner.anonymized rows
 	dynamoPolicy := pulumi.All(
 		tables.Accounts.Arn, tables.Runners.Arn, tables.Registrations.Arn, tables.MagicTokens.Arn,
+		tables.Events.Arn, tables.Races.Arn, tables.Audit.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		accountsArn := args[0].(string)
 		runnersArn := args[1].(string)
 		regsArn := args[2].(string)
 		tokensArn := args[3].(string)
+		eventsArn := args[4].(string)
+		racesArn := args[5].(string)
+		auditArn := args[6].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -69,6 +84,7 @@ func setupRetention(
 						"dynamodb:GetItem",
 						"dynamodb:Query",
 						"dynamodb:Scan",
+						"dynamodb:PutItem",
 						"dynamodb:UpdateItem",
 						"dynamodb:DeleteItem",
 						"dynamodb:TransactWriteItems",
@@ -81,6 +97,9 @@ func setupRetention(
 						regsArn,
 						regsArn + "/index/*",
 						tokensArn,
+						eventsArn,
+						racesArn,
+						auditArn,
 					},
 				},
 			},
@@ -94,6 +113,38 @@ func setupRetention(
 	_, err = iam.NewRolePolicy(ctx, "retention-dynamodb", &iam.RolePolicyArgs{
 		Role:   role.ID(),
 		Policy: dynamoPolicy,
+	})
+	if err != nil {
+		return err
+	}
+
+	// SES send permission. The inactivity sweep emails users whose accounts
+	// it's about to soft-delete. Same wildcard-on-identity pattern as the
+	// API Lambda — sandbox mode IAM-checks the recipient too, and we can't
+	// enumerate future addresses.
+	sesPolicy := em.ConfigurationSetArn.ApplyT(func(configSetArn string) (string, error) {
+		doc, err := json.Marshal(map[string]any{
+			"Version": "2012-10-17",
+			"Statement": []any{
+				map[string]any{
+					"Effect": "Allow",
+					"Action": []string{"ses:SendEmail", "ses:SendRawEmail"},
+					"Resource": []string{
+						"arn:aws:ses:eu-north-1:*:identity/*",
+						configSetArn,
+					},
+				},
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		return string(doc), nil
+	}).(pulumi.StringOutput)
+
+	_, err = iam.NewRolePolicy(ctx, "retention-ses", &iam.RolePolicyArgs{
+		Role:   role.ID(),
+		Policy: sesPolicy,
 	})
 	if err != nil {
 		return err
@@ -130,6 +181,12 @@ func setupRetention(
 				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
 				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
 				"AUDIT_TABLE_NAME":         tables.Audit.Name,
+				"RATE_LIMIT_TABLE_NAME":    tables.RateLimit.Name,
+				// SES + base URL — the inactivity sweep emails a restore
+				// link to users about to be auto-deleted.
+				"SES_SENDER_ADDRESS":    pulumi.String(em.SenderAddress),
+				"SES_CONFIGURATION_SET": em.ConfigurationSet.ConfigurationSetName,
+				"SITE_BASE_URL":         pulumi.String("https://" + siteFQDN),
 			},
 		},
 	}, pulumi.DependsOn([]pulumi.Resource{logGroup}))

@@ -37,6 +37,7 @@ const (
 	AuthAttemptsTableName  = "the-run-auth-attempts"
 	MagicTokensTableName   = "the-run-magic-tokens"
 	AuditTableName         = "the-run-audit"
+	RateLimitTableName     = "the-run-rate-limit"
 )
 
 type Tables struct {
@@ -48,6 +49,7 @@ type Tables struct {
 	AuthAttempts  *dynamodb.Table
 	MagicTokens   *dynamodb.Table
 	Audit         *dynamodb.Table
+	RateLimit     *dynamodb.Table
 }
 
 func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
@@ -231,6 +233,31 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		return nil, err
 	}
 
+	// Rate-limit table (GDPR A0.7). PK=bucket (S, e.g. "register#<ip>"),
+	// SK=at (S, RFC3339Nano). TTL on `expiresAt` (epoch seconds) — rows
+	// auto-evict after the rate-limit window so the count stays bounded.
+	// IPs are processed under legitimate-interest for fraud/spam prevention
+	// (Art. 6(1)(f)); retention ≤ a few minutes makes this proportionate.
+	// SSE on; no PITR (short-lived telemetry, not data worth recovering).
+	rateLimit, err := dynamodb.NewTable(ctx, "rate-limit-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(RateLimitTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("bucket"),
+		RangeKey:    pulumi.String("at"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("bucket"), Type: pulumi.String("S")},
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("at"), Type: pulumi.String("S")},
+		},
+		Ttl: &dynamodb.TableTtlArgs{
+			AttributeName: pulumi.String("expiresAt"),
+			Enabled:       pulumi.Bool(true),
+		},
+		ServerSideEncryption: sseEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Tables{
 		Runners:       runners,
 		Registrations: registrations,
@@ -240,5 +267,6 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		AuthAttempts:  authAttempts,
 		MagicTokens:   magicTokens,
 		Audit:         audit,
+		RateLimit:     rateLimit,
 	}, nil
 }

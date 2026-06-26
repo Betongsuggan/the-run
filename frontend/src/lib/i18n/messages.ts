@@ -209,6 +209,14 @@ const sv = {
 		runnersRegistrations: (n: number) => (n === 1 ? '1 anmälan' : `${n} anmälningar`),
 		runnersUnder13Note: (name: string) =>
 			`Eftersom ${name} är under 13 år visas hen aldrig publikt — inställningen ovan får effekt först när hen fyller 13.`,
+		retentionIndefinite:
+			'Lagring: löparhistoriken sparas tills vidare (eftersom publika resultat är tillåtna).',
+		retentionAnonymizesAt: (date: string) =>
+			`Lagring: namn och födelsedatum anonymiseras automatiskt ${date} (36 månader efter senaste loppet). Klockan börjar om varje gång löparen deltar i ett nytt lopp.`,
+		retentionNoTimer:
+			'Lagring: ingen tidsräknare igång — den startar efter ditt första genomförda lopp.',
+		inactivityNote: (date: string) =>
+			`Ditt konto raderas automatiskt ${date} om du inte är aktiv (loggar in, anmäler dig till ett lopp eller springer ett lopp) före dess. Klockan börjar om vid varje aktivitet.`,
 		exportHeading: 'Exportera dina uppgifter',
 		exportBody:
 			'Ladda ner allt vi har om dig som en JSON-fil — konto, löpare, anmälningar och samtycken.',
@@ -272,12 +280,18 @@ const sv = {
 			'Länken är ogiltig, har redan använts, eller har förfallit (kanske för att 30-dagarsfönstret tagit slut).',
 		restoreMissingToken: 'Ingen kod fanns i URL:en.',
 		restoreBack: 'Till Mina uppgifter',
+		pendingDeletionHeading: (date: string) => `Ditt konto är schemalagt för radering den ${date}`,
+		pendingDeletionBody:
+			'Uppgifterna är dolda från publika listor men kan återställas till och med raderingsdatumet. Klicka nedan om du ångrar dig.',
+		pendingDeletionCancel: 'Återställ kontot',
 		activityHeading: 'Din aktivitet',
 		activityBody:
 			'Här ser du vad som hänt med dina uppgifter — när du loggat in, ändrat samtycken, eller när vi mejlat dig.',
 		activityActorUser: 'Du',
 		activityActorAdmin: 'Administratör',
 		activityActorSystem: 'System',
+		activityUpcoming: 'Planerat',
+		activityUpcomingDeletion: 'Kontot raderas slutgiltigt',
 		activityActions: {
 			'dsr.session.started': 'Loggade in på Mina uppgifter',
 			'consent.marketing.update': 'Uppdaterade nyhetsbrev-samtycke',
@@ -292,7 +306,11 @@ const sv = {
 			'account.restored': 'Återställde kontot från radering',
 			'admin.registration.created': 'Administratör skapade en anmälan',
 			'admin.registration.updated': 'Administratör uppdaterade en anmälan',
-			'admin.registration.deleted': 'Administratör tog bort en anmälan'
+			'admin.registration.deleted': 'Administratör tog bort en anmälan',
+			'retention.runner.anonymized':
+				'Vi anonymiserade dina löparuppgifter enligt 36-månaderspolicyn',
+			'retention.account.inactivity':
+				'Vi schemalade ditt konto för radering efter 36 månaders inaktivitet'
 		}
 	},
 	admin: {
@@ -644,6 +662,12 @@ const en: Catalog = {
 		runnersRegistrations: (n: number) => (n === 1 ? '1 registration' : `${n} registrations`),
 		runnersUnder13Note: (name: string) =>
 			`While ${name} is under 13, they are never shown publicly — the setting above will only take effect when they turn 13.`,
+		retentionIndefinite: 'Retention: race history kept indefinitely (you allow public results).',
+		retentionAnonymizesAt: (date: string) =>
+			`Retention: name and date of birth are auto-anonymized on ${date} (36 months after the last race). The clock resets each time the runner participates in a new race.`,
+		retentionNoTimer: 'Retention: no timer running yet — it starts after your first finished race.',
+		inactivityNote: (date: string) =>
+			`Your account will be deleted automatically on ${date} unless you're active (log in, register for a race, or finish a race) before then. The clock resets on every activity.`,
 		exportHeading: 'Export your data',
 		exportBody:
 			'Download everything we have on you as a JSON file — account, runners, registrations, consents.',
@@ -707,12 +731,18 @@ const en: Catalog = {
 			'The link is invalid, already used, or expired (perhaps the 30-day window closed).',
 		restoreMissingToken: 'No token was supplied in the URL.',
 		restoreBack: 'Back to My data',
+		pendingDeletionHeading: (date: string) => `Your account is scheduled for deletion on ${date}`,
+		pendingDeletionBody:
+			'Your data is hidden from public listings but can still be restored until the deletion date. Click below if you change your mind.',
+		pendingDeletionCancel: 'Restore my account',
 		activityHeading: 'Your activity',
 		activityBody:
 			"This is everything we've done with your data — sign-ins, consent changes, emails we've sent you.",
 		activityActorUser: 'You',
 		activityActorAdmin: 'Admin',
 		activityActorSystem: 'System',
+		activityUpcoming: 'Scheduled',
+		activityUpcomingDeletion: 'Account permanently deleted',
 		activityActions: {
 			'dsr.session.started': 'Signed in to My data',
 			'consent.marketing.update': 'Updated newsletter consent',
@@ -727,7 +757,11 @@ const en: Catalog = {
 			'account.restored': 'Restored account from pending erasure',
 			'admin.registration.created': 'An admin created a registration',
 			'admin.registration.updated': 'An admin updated a registration',
-			'admin.registration.deleted': 'An admin deleted a registration'
+			'admin.registration.deleted': 'An admin deleted a registration',
+			'retention.runner.anonymized':
+				'We anonymized your runner data per the 36-month retention policy',
+			'retention.account.inactivity':
+				'We scheduled your account for deletion after 36 months of inactivity'
 		}
 	},
 	admin: {

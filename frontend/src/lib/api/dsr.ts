@@ -17,6 +17,20 @@ export type DSRAccount = {
 	locale?: string;
 	createdAt: string;
 	marketingConsent?: DSRConsent;
+	// ISO timestamp when the account will be permanently purged. Set
+	// only when the account is in the 30-day soft-delete grace window.
+	deletionPendingUntil?: string;
+	// ISO timestamp when this account would be flagged for inactivity-
+	// based deletion if no further activity occurs. Always set on active
+	// accounts (resets on every login / new registration / finished race).
+	inactivityDeletionAt?: string;
+};
+
+export type DSRRunnerRetention = {
+	// "kept-indefinitely" | "anonymizes-at" | "no-timer"
+	policy: 'kept-indefinitely' | 'anonymizes-at' | 'no-timer';
+	anonymizesAt?: string; // YYYY-MM-DD
+	lastFinishedRace?: string; // YYYY-MM-DD
 };
 
 export type DSRRunner = {
@@ -26,6 +40,7 @@ export type DSRRunner = {
 	birthDate: string;
 	createdAt: string;
 	publicResultsConsent?: DSRConsent;
+	retention: DSRRunnerRetention;
 };
 
 export type DSRRegistration = {
@@ -121,6 +136,12 @@ export async function dsrEraseAccount(): Promise<{ ok: boolean }> {
 
 export async function dsrRestore(token: string): Promise<DSRSession> {
 	return api<DSRSession>('/dsr/me/restore', { method: 'POST', body: { token } });
+}
+
+// Session-authenticated counterpart to dsrRestore — used by the dashboard
+// "cancel deletion" banner when the user is already logged in.
+export async function dsrCancelDeletion(): Promise<DSRMe> {
+	return api<DSRMe>('/dsr/me/cancel-deletion', { method: 'POST' });
 }
 
 // dsrExportDownload bypasses the standard api() wrapper because it doesn't

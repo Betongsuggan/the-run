@@ -104,6 +104,7 @@ func Setup(
 	dynamoPolicy := pulumi.All(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
 		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.MagicTokens.Arn, tables.Audit.Arn,
+		tables.RateLimit.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
@@ -113,6 +114,7 @@ func Setup(
 		attemptsArn := args[5].(string)
 		guardianArn := args[6].(string)
 		auditArn := args[7].(string)
+		rateLimitArn := args[8].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -144,6 +146,7 @@ func Setup(
 						attemptsArn + "/index/*",
 						guardianArn,
 						auditArn,
+						rateLimitArn,
 					},
 				},
 			},
@@ -254,6 +257,7 @@ func Setup(
 				"RACES_TABLE_NAME":         tables.Races.Name,
 				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
 				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
+				"RATE_LIMIT_TABLE_NAME":    tables.RateLimit.Name,
 				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
 				"AUDIT_TABLE_NAME":         tables.Audit.Name,
 				"JWT_SECRET_ARN":           jwtSecret.Arn,
@@ -393,7 +397,7 @@ func Setup(
 
 	// GDPR retention sweep — scheduled Lambda that purges soft-deleted PII
 	// once its grace window expires. See retention.go.
-	if err := setupRetention(ctx, tables); err != nil {
+	if err := setupRetention(ctx, tables, em, siteFQDN); err != nil {
 		return nil, err
 	}
 
