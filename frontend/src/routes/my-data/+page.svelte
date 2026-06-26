@@ -25,7 +25,8 @@
 		dsrEraseRunner,
 		dsrEraseAccount,
 		type DSRMe,
-		type DSRRunner
+		type DSRRunner,
+		type DSRAuditRow
 	} from '$lib/api/dsr';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { formatDate } from '$lib/format';
@@ -286,6 +287,38 @@
 		}
 	}
 
+	// ── Activity log helpers ────────────────────────────────────────────
+	// activityLabel maps the machine-readable action codes from the audit
+	// log to localized human-readable labels. Unknown actions fall back to
+	// the row's summary (or the raw code if both are missing).
+
+	function activityLabel(row: DSRAuditRow): string {
+		const a = i18n.m.myData.activityActions as Record<string, string>;
+		if (row.action in a) return a[row.action];
+		return row.summary ?? row.action;
+	}
+
+	function formatActor(actor: string): string {
+		if (actor === 'user') return i18n.m.myData.activityActorUser;
+		if (actor === 'system') return i18n.m.myData.activityActorSystem;
+		if (actor.startsWith('admin')) return i18n.m.myData.activityActorAdmin;
+		return actor;
+	}
+
+	function formatActivityTimestamp(iso: string): string {
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return iso;
+		// Locale-aware short date + time. SvelteKit's i18n.locale matches
+		// the page locale so the date format follows.
+		return d.toLocaleString(i18n.locale === 'sv' ? 'sv-SE' : 'en-GB', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
 	function ageFromBirthDate(birthDate: string): number | null {
 		if (!birthDate) return null;
 		const dob = new Date(birthDate);
@@ -507,6 +540,36 @@
 				</ul>
 			{/if}
 		</section>
+
+		<!-- Your activity — chronological audit log of what we've done with
+		     your data. Hidden when the list is empty so a brand-new account
+		     doesn't see a hollow section. -->
+		{#if me.recentAudit && me.recentAudit.length > 0}
+			<section
+				class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-3"
+			>
+				<h2 class="text-lg font-semibold">{i18n.m.myData.activityHeading}</h2>
+				<p class="text-xs opacity-70">{i18n.m.myData.activityBody}</p>
+				<ol class="space-y-2 text-sm">
+					{#each me.recentAudit as row, idx (row.at + '-' + idx)}
+						<li class="flex items-start gap-3 border-l-2 border-surface-300-700 pl-3 py-0.5">
+							<time class="font-mono text-xs opacity-60 shrink-0 w-32 pt-0.5">
+								{formatActivityTimestamp(row.at)}
+							</time>
+							<div class="min-w-0 flex-1">
+								<div>{activityLabel(row)}</div>
+								{#if row.summary && row.summary !== activityLabel(row)}
+									<div class="text-xs opacity-70 mt-0.5">{row.summary}</div>
+								{/if}
+								<div class="text-[10px] opacity-50 uppercase tracking-wide mt-0.5">
+									{formatActor(row.actor)}
+								</div>
+							</div>
+						</li>
+					{/each}
+				</ol>
+			</section>
+		{/if}
 
 		<!-- Export -->
 		<section class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-3">

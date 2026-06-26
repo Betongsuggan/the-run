@@ -36,6 +36,7 @@ const (
 	AccountsTableName      = "the-run-accounts"
 	AuthAttemptsTableName  = "the-run-auth-attempts"
 	MagicTokensTableName   = "the-run-magic-tokens"
+	AuditTableName         = "the-run-audit"
 )
 
 type Tables struct {
@@ -46,6 +47,7 @@ type Tables struct {
 	Accounts      *dynamodb.Table
 	AuthAttempts  *dynamodb.Table
 	MagicTokens   *dynamodb.Table
+	Audit         *dynamodb.Table
 }
 
 func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
@@ -208,6 +210,27 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		return nil, err
 	}
 
+	// Audit log (GDPR A1.1.4 + A1.2). PK=accountId (S), SK=at (S, RFC3339Nano
+	// so rows from the same logical second still sort deterministically by
+	// real-world arrival). One row per recorded action; the same stream
+	// powers the user's /my-data "Your activity" view and any future
+	// admin-side audit dashboard. SSE on. PITR off (retention is bounded
+	// to ~24 months by a future sweep, not the recoverable-data category).
+	audit, err := dynamodb.NewTable(ctx, "audit-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(AuditTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("accountId"),
+		RangeKey:    pulumi.String("at"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("accountId"), Type: pulumi.String("S")},
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("at"), Type: pulumi.String("S")},
+		},
+		ServerSideEncryption: sseEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Tables{
 		Runners:       runners,
 		Registrations: registrations,
@@ -216,5 +239,6 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		Accounts:      accounts,
 		AuthAttempts:  authAttempts,
 		MagicTokens:   magicTokens,
+		Audit:         audit,
 	}, nil
 }

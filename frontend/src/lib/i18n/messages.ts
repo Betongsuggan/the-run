@@ -271,7 +271,29 @@ const sv = {
 		restoreErrorBody:
 			'Länken är ogiltig, har redan använts, eller har förfallit (kanske för att 30-dagarsfönstret tagit slut).',
 		restoreMissingToken: 'Ingen kod fanns i URL:en.',
-		restoreBack: 'Till Mina uppgifter'
+		restoreBack: 'Till Mina uppgifter',
+		activityHeading: 'Din aktivitet',
+		activityBody:
+			'Här ser du vad som hänt med dina uppgifter — när du loggat in, ändrat samtycken, eller när vi mejlat dig.',
+		activityActorUser: 'Du',
+		activityActorAdmin: 'Administratör',
+		activityActorSystem: 'System',
+		activityActions: {
+			'dsr.session.started': 'Loggade in på Mina uppgifter',
+			'consent.marketing.update': 'Uppdaterade nyhetsbrev-samtycke',
+			'consent.publicResults.update': 'Uppdaterade samtycke för publika resultat',
+			'locale.update': 'Ändrade språk',
+			'runner.update': 'Uppdaterade löparuppgifter',
+			'email.changed': 'Bytte e-postadress',
+			'email.sent': 'Vi skickade ett mejl till dig',
+			'email.send.failed': 'Försökte mejla dig — leveransen misslyckades',
+			'runner.erased': 'Schemalade löpare för radering',
+			'account.erased': 'Schemalade kontot för radering',
+			'account.restored': 'Återställde kontot från radering',
+			'admin.registration.created': 'Administratör skapade en anmälan',
+			'admin.registration.updated': 'Administratör uppdaterade en anmälan',
+			'admin.registration.deleted': 'Administratör tog bort en anmälan'
+		}
 	},
 	admin: {
 		title: 'Admin',
@@ -684,7 +706,29 @@ const en: Catalog = {
 		restoreErrorBody:
 			'The link is invalid, already used, or expired (perhaps the 30-day window closed).',
 		restoreMissingToken: 'No token was supplied in the URL.',
-		restoreBack: 'Back to My data'
+		restoreBack: 'Back to My data',
+		activityHeading: 'Your activity',
+		activityBody:
+			"This is everything we've done with your data — sign-ins, consent changes, emails we've sent you.",
+		activityActorUser: 'You',
+		activityActorAdmin: 'Admin',
+		activityActorSystem: 'System',
+		activityActions: {
+			'dsr.session.started': 'Signed in to My data',
+			'consent.marketing.update': 'Updated newsletter consent',
+			'consent.publicResults.update': 'Updated public-results consent',
+			'locale.update': 'Changed language',
+			'runner.update': 'Updated runner details',
+			'email.changed': 'Changed email address',
+			'email.sent': 'We sent you an email',
+			'email.send.failed': 'Tried to email you — delivery failed',
+			'runner.erased': 'Scheduled runner for erasure',
+			'account.erased': 'Scheduled account for erasure',
+			'account.restored': 'Restored account from pending erasure',
+			'admin.registration.created': 'An admin created a registration',
+			'admin.registration.updated': 'An admin updated a registration',
+			'admin.registration.deleted': 'An admin deleted a registration'
+		}
 	},
 	admin: {
 		title: 'Admin',

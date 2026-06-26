@@ -11,6 +11,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
+	"github.com/BirgerRydback/the-run/backend/internal/audit"
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
@@ -182,8 +183,30 @@ func toStoreUpdate(raceID, runnerID string, f registrationFields) (store.Registr
 	return u, nil
 }
 
-func registerAdminRegistrations(api huma.API, s store.Store, authCfg auth.Config) {
+func registerAdminRegistrations(api huma.API, s store.Store, authCfg auth.Config, recorder audit.Recorder) {
 	adminMW := adminMiddlewares(authCfg)
+	// auditAdminAction records an audit row attributed to the calling
+	// admin, against the runner whose registration was touched. Looks up
+	// the runner to find AccountID — without that we'd have no partition
+	// key. Silent on lookup failure (best-effort observability).
+	auditAdminAction := func(ctx context.Context, raceID, runnerID, action, summary string) {
+		runner, err := s.GetRunner(ctx, runnerID)
+		if err != nil || runner == nil {
+			return
+		}
+		actor := "admin"
+		if sub := auth.Subject(ctx); sub != "" {
+			actor = "admin:" + sub
+		}
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  runner.AccountID,
+			Action:     action,
+			Actor:      actor,
+			TargetType: "registration",
+			TargetID:   raceID + "/" + runnerID,
+			Summary:    summary,
+		})
+	}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-all-registrations",
@@ -267,6 +290,7 @@ func registerAdminRegistrations(api huma.API, s store.Store, authCfg auth.Config
 			}
 			return nil, fmt.Errorf("create registration: %w", err)
 		}
+		auditAdminAction(ctx, reg.RaceID, reg.RunnerID, "admin.registration.created", "Admin created registration")
 		return &registrationOutput{Body: registrationToDTO(reg)}, nil
 	})
 
@@ -289,6 +313,7 @@ func registerAdminRegistrations(api huma.API, s store.Store, authCfg auth.Config
 			}
 			return nil, fmt.Errorf("update registration: %w", err)
 		}
+		auditAdminAction(ctx, reg.RaceID, reg.RunnerID, "admin.registration.updated", "Admin updated registration")
 		return &registrationOutput{Body: registrationToDTO(*reg)}, nil
 	})
 
@@ -329,6 +354,11 @@ func registerAdminRegistrations(api huma.API, s store.Store, authCfg auth.Config
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   adminMW,
 	}, func(ctx context.Context, in *registrationKeyInput) (*struct{}, error) {
+		// Audit BEFORE the delete so we can still resolve the runner →
+		// accountId. After the delete the runner might still exist, but
+		// future deletes (e.g. cascading runner erasure) could leave us
+		// without a key.
+		auditAdminAction(ctx, in.RaceID, in.RunnerID, "admin.registration.deleted", "Admin deleted registration")
 		if err := s.DeleteRegistration(ctx, in.RaceID, in.RunnerID); err != nil {
 			return nil, fmt.Errorf("delete registration: %w", err)
 		}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/BirgerRydback/the-run/backend/internal/audit"
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
@@ -88,6 +89,19 @@ type dsrMeBody struct {
 	Account       dsrAccountDTO        `json:"account"`
 	Runners       []dsrRunnerDTO       `json:"runners"`
 	Registrations []dsrRegistrationDTO `json:"registrations"`
+	// RecentAudit is the most recent N audit rows for this account,
+	// newest-first. Powers the "Your activity" view on /my-data
+	// (GDPR A1.1.4). Limit picked client-side; server caps at 200.
+	RecentAudit []dsrAuditRowDTO `json:"recentAudit,omitempty"`
+}
+
+type dsrAuditRowDTO struct {
+	At         string `json:"at"`
+	Action     string `json:"action"`
+	Actor      string `json:"actor"`
+	TargetType string `json:"targetType,omitempty"`
+	TargetID   string `json:"targetId,omitempty"`
+	Summary    string `json:"summary,omitempty"`
 }
 
 type dsrAccountDTO struct {
@@ -180,7 +194,7 @@ type dsrConfirmEmailChangeOutput struct {
 
 // ── Registration ──────────────────────────────────────────────────────────
 
-func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.Sender) {
+func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.Sender, recorder audit.Recorder) {
 	dsrMW := huma.Middlewares{auth.RequireDSRSession(authCfg)}
 
 	huma.Register(api, huma.Operation{
@@ -302,6 +316,15 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err != nil {
 			return nil, fmt.Errorf("issue dsr session: %w", err)
 		}
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  account.ID,
+			At:         now,
+			Action:     "dsr.session.started",
+			Actor:      "user",
+			TargetType: "account",
+			TargetID:   account.ID,
+			Summary:    "Signed in to My data via magic link",
+		})
 		out := &dsrSessionOutput{
 			SetCookie: buildDSRCookie(authCfg, jwt, int(auth.DSRSessionTTL.Seconds())),
 		}
@@ -333,7 +356,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		Tags:        []string{"dsr"},
 		Middlewares: dsrMW,
 	}, func(ctx context.Context, _ *struct{}) (*dsrMeOutput, error) {
-		body, err := buildDSRMeBody(ctx, s)
+		body, err := buildDSRMeBody(ctx, s, recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -348,7 +371,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		Tags:        []string{"dsr"},
 		Middlewares: dsrMW,
 	}, func(ctx context.Context, _ *struct{}) (*dsrExportOutput, error) {
-		body, err := buildDSRMeBody(ctx, s)
+		body, err := buildDSRMeBody(ctx, s, recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -391,6 +414,15 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 			if err := s.UpdateAccount(ctx, *account); err != nil {
 				return nil, fmt.Errorf("update account: %w", err)
 			}
+			recorder.Record(ctx, models.AuditRow{
+				AccountID:  accountID,
+				At:         now,
+				Action:     "consent.marketing.update",
+				Actor:      "user",
+				TargetType: "account",
+				TargetID:   accountID,
+				Summary:    boolSummary("marketing", *in.Body.Marketing),
+			})
 		}
 
 		// Per-runner — verify ownership before each write. A naive client
@@ -418,9 +450,18 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 			if err := s.UpdateRunner(ctx, *runner); err != nil {
 				return nil, fmt.Errorf("update runner: %w", err)
 			}
+			recorder.Record(ctx, models.AuditRow{
+				AccountID:  accountID,
+				At:         now,
+				Action:     "consent.publicResults.update",
+				Actor:      "user",
+				TargetType: "runner",
+				TargetID:   runner.ID,
+				Summary:    boolSummary("publicResults for "+runner.Name, *update.PublicResults),
+			})
 		}
 
-		body, err := buildDSRMeBody(ctx, s)
+		body, err := buildDSRMeBody(ctx, s, recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -479,8 +520,16 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := s.UpdateRunner(ctx, *runner); err != nil {
 			return nil, fmt.Errorf("update runner: %w", err)
 		}
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  accountID,
+			Action:     "runner.update",
+			Actor:      "user",
+			TargetType: "runner",
+			TargetID:   runner.ID,
+			Summary:    "Updated runner " + runner.Name,
+		})
 
-		body, err := buildDSRMeBody(ctx, s)
+		body, err := buildDSRMeBody(ctx, s, recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -504,7 +553,15 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := s.UpdateAccount(ctx, *account); err != nil {
 			return nil, fmt.Errorf("update account: %w", err)
 		}
-		body, err := buildDSRMeBody(ctx, s)
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  accountID,
+			Action:     "locale.update",
+			Actor:      "user",
+			TargetType: "account",
+			TargetID:   accountID,
+			Summary:    "Language set to " + in.Body.Locale,
+		})
+		body, err := buildDSRMeBody(ctx, s, recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -635,6 +692,14 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 			}
 			return nil, fmt.Errorf("swap account email: %w", err)
 		}
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  account.ID,
+			Action:     "email.changed",
+			Actor:      "user",
+			TargetType: "account",
+			TargetID:   account.ID,
+			Summary:    "Email changed to " + newEmail,
+		})
 
 		out := &dsrConfirmEmailChangeOutput{}
 		out.Body.Email = newEmail
@@ -682,7 +747,16 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := issueRestoreLink(ctx, s, sender, accountID, until); err != nil {
 			log.Printf("dsr restore link send failed: accountId=%s err=%v", accountID, err)
 		}
-		body, err := buildDSRMeBody(ctx, s)
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  accountID,
+			At:         now,
+			Action:     "runner.erased",
+			Actor:      "user",
+			TargetType: "runner",
+			TargetID:   runner.ID,
+			Summary:    "Scheduled " + runner.Name + " for erasure",
+		})
+		body, err := buildDSRMeBody(ctx, s, recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -730,6 +804,15 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := issueRestoreLink(ctx, s, sender, accountID, until); err != nil {
 			log.Printf("dsr restore link send failed: accountId=%s err=%v", accountID, err)
 		}
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  accountID,
+			At:         now,
+			Action:     "account.erased",
+			Actor:      "user",
+			TargetType: "account",
+			TargetID:   accountID,
+			Summary:    "Scheduled entire account for erasure",
+		})
 
 		// End the session so the next /my-data visit goes through
 		// request-link → restore-link (or stays gone if they don't act).
@@ -803,6 +886,16 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 				return nil, err
 			}
 		}
+
+		recorder.Record(ctx, models.AuditRow{
+			AccountID:  account.ID,
+			At:         now,
+			Action:     "account.restored",
+			Actor:      "user",
+			TargetType: "account",
+			TargetID:   account.ID,
+			Summary:    "Cancelled pending erasure",
+		})
 
 		// Issue a fresh DSR session so the restored user lands straight on
 		// their dashboard — same UX as a normal magic-link verify.
@@ -897,7 +990,7 @@ func issueRestoreLink(ctx context.Context, s store.Store, sender email.Sender, a
 // buildDSRMeBody collects the account, runners, and registrations for the
 // DSR-authenticated subject. Shared between /dsr/me and /dsr/me/export so the
 // in-app view and the export file stay byte-identical.
-func buildDSRMeBody(ctx context.Context, s store.Store) (*dsrMeBody, error) {
+func buildDSRMeBody(ctx context.Context, s store.Store, recorder audit.Recorder) (*dsrMeBody, error) {
 	accountID := auth.DSRSubject(ctx)
 	if accountID == "" {
 		// Defensive — middleware should guarantee this is populated.
@@ -960,6 +1053,24 @@ func buildDSRMeBody(ctx context.Context, s store.Store) (*dsrMeBody, error) {
 			CreatedAt:     reg.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}
+
+	// Recent audit rows — best-effort. If the table read fails we still
+	// return the rest of the dashboard; the activity section just renders
+	// empty.
+	if rows, err := recorder.ListByAccount(ctx, accountID, 50); err == nil {
+		body.RecentAudit = make([]dsrAuditRowDTO, 0, len(rows))
+		for _, r := range rows {
+			body.RecentAudit = append(body.RecentAudit, dsrAuditRowDTO{
+				At:         r.At.UTC().Format(time.RFC3339),
+				Action:     r.Action,
+				Actor:      r.Actor,
+				TargetType: r.TargetType,
+				TargetID:   r.TargetID,
+				Summary:    r.Summary,
+			})
+		}
+	}
+
 	return body, nil
 }
 
@@ -1029,6 +1140,16 @@ func itoa(n int) string {
 		digits[i] = '-'
 	}
 	return string(digits[i:])
+}
+
+// boolSummary renders an "X: enabled" / "X: disabled" string for the audit
+// row's human-readable Summary field. The frontend translates known action
+// codes via i18n, but Summary is the fallback for unknown ones.
+func boolSummary(field string, v bool) string {
+	if v {
+		return field + ": enabled"
+	}
+	return field + ": disabled"
 }
 
 // sendDSRAccessEmail composes the magic-link email and hands it to the

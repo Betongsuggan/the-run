@@ -129,6 +129,7 @@ func setupRetention(
 				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
 				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
 				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
+				"AUDIT_TABLE_NAME":         tables.Audit.Name,
 			},
 		},
 	}, pulumi.DependsOn([]pulumi.Resource{logGroup}))

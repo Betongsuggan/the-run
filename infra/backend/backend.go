@@ -103,7 +103,7 @@ func Setup(
 
 	dynamoPolicy := pulumi.All(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
-		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.MagicTokens.Arn,
+		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.MagicTokens.Arn, tables.Audit.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
@@ -112,6 +112,7 @@ func Setup(
 		accountsArn := args[4].(string)
 		attemptsArn := args[5].(string)
 		guardianArn := args[6].(string)
+		auditArn := args[7].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -142,6 +143,7 @@ func Setup(
 						attemptsArn,
 						attemptsArn + "/index/*",
 						guardianArn,
+						auditArn,
 					},
 				},
 			},
@@ -253,6 +255,7 @@ func Setup(
 				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
 				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
 				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
+				"AUDIT_TABLE_NAME":         tables.Audit.Name,
 				"JWT_SECRET_ARN":           jwtSecret.Arn,
 				"SES_SENDER_ADDRESS":       pulumi.String(em.SenderAddress),
 				"SES_CONFIGURATION_SET":    em.ConfigurationSet.ConfigurationSetName,

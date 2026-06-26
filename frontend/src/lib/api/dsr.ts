@@ -38,10 +38,20 @@ export type DSRRegistration = {
 	createdAt: string;
 };
 
+export type DSRAuditRow = {
+	at: string;
+	action: string;
+	actor: string;
+	targetType?: string;
+	targetId?: string;
+	summary?: string;
+};
+
 export type DSRMe = {
 	account: DSRAccount;
 	runners: DSRRunner[];
 	registrations: DSRRegistration[];
+	recentAudit?: DSRAuditRow[];
 };
 
 export type DSRSession = {

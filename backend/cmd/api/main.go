@@ -12,6 +12,7 @@ import (
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"github.com/BirgerRydback/the-run/backend/internal/api"
+	"github.com/BirgerRydback/the-run/backend/internal/audit"
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
@@ -38,8 +39,21 @@ func main() {
 		log.Printf("email: SES sender configured")
 	}
 
+	recorder, auditActive, err := audit.NewRecorderFromEnv(ctx)
+	if err != nil {
+		log.Fatalf("init audit recorder: %v", err)
+	}
+	if auditActive {
+		log.Printf("audit: recorder configured")
+	}
+
+	// Wrap the email sender so every send records an audit row keyed on
+	// the recipient's account. Has to come after both sender + recorder
+	// + store are initialised.
+	sender = audit.WrapSender(sender, recorder, dynStore)
+
 	mux := http.NewServeMux()
-	api.Register(mux, dynStore, authCfg, sender)
+	api.Register(mux, dynStore, authCfg, sender, recorder)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") == "" {
 		addr := ":8080"
