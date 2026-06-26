@@ -1,6 +1,13 @@
 import { api } from '$lib/http';
 import { dataStore, type RegistrationUpdate } from '$lib/store/data.svelte';
-import type { Race, RaceEvent, Registration, Runner } from '$lib/types';
+import type {
+	Policy,
+	PolicyRevision,
+	Race,
+	RaceEvent,
+	Registration,
+	Runner
+} from '$lib/types';
 
 // All admin endpoints are gated by the session cookie set by /auth/login +
 // /auth/totp. The fetch helper sends `credentials: 'include'` so the cookie
@@ -130,4 +137,50 @@ export async function adminBulkUpdateRegistrations(
 	const list = res.registrations ?? [];
 	dataStore.upsertRegistrations(list);
 	return list;
+}
+
+// ─── Privacy policies (admin CRUD) ──────────────────────────────────────
+
+export type CreatePolicyInput = {
+	slug: string;
+	effectiveFrom: string;
+	bodySv: string;
+	bodyEn: string;
+};
+
+export type EditPolicyInput = {
+	bodySv: string;
+	bodyEn: string;
+	note?: string;
+};
+
+export async function adminListPolicies(): Promise<Policy[]> {
+	const res = await api<{ policies: Policy[] }>('/admin/policies');
+	return res.policies ?? [];
+}
+
+export async function adminCreatePolicy(input: CreatePolicyInput): Promise<Policy> {
+	return api<Policy>('/admin/policies', { method: 'POST', body: input });
+}
+
+export async function adminEditPolicy(id: string, input: EditPolicyInput): Promise<Policy> {
+	return api<Policy>(`/admin/policies/${encodeURIComponent(id)}`, {
+		method: 'PUT',
+		body: input
+	});
+}
+
+export async function adminPublishPolicy(id: string): Promise<Policy> {
+	return api<Policy>(`/admin/policies/${encodeURIComponent(id)}/publish`, { method: 'POST' });
+}
+
+export async function adminArchivePolicy(id: string): Promise<Policy> {
+	return api<Policy>(`/admin/policies/${encodeURIComponent(id)}/archive`, { method: 'POST' });
+}
+
+export async function adminListPolicyRevisions(id: string): Promise<PolicyRevision[]> {
+	const res = await api<{ revisions: PolicyRevision[] }>(
+		`/admin/policies/${encodeURIComponent(id)}/revisions`
+	);
+	return res.revisions ?? [];
 }

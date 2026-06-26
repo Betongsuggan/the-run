@@ -16,14 +16,13 @@ import (
 // the cookie/security knobs. Build once at process start; pass by value to
 // handlers so unit tests can substitute a deterministic config.
 type Config struct {
-	JWTSecret      []byte
-	CookieDomain   string // empty in dev → host-only cookie
-	SecureCookies  bool   // false in local dev only
-	SessionTTL     int    // seconds; default 8h
-	ChallengeTTL   int    // seconds; default 5min
-	AttemptTTL     int    // seconds; default 15min
-	MaxAttempts    int    // default 5
-	PrivacyVersion string
+	JWTSecret     []byte
+	CookieDomain  string // empty in dev → host-only cookie
+	SecureCookies bool   // false in local dev only
+	SessionTTL    int    // seconds; default 8h
+	ChallengeTTL  int    // seconds; default 5min
+	AttemptTTL    int    // seconds; default 15min
+	MaxAttempts   int    // default 5
 }
 
 // LoadConfig resolves the JWT signing secret. Order:
@@ -46,14 +45,13 @@ func LoadConfig(ctx context.Context) (Config, error) {
 			return
 		}
 		loadCfg = Config{
-			JWTSecret:      secret,
-			CookieDomain:   os.Getenv("COOKIE_DOMAIN"),
-			SecureCookies:  os.Getenv("INSECURE_COOKIES") != "1",
-			SessionTTL:     8 * 60 * 60,
-			ChallengeTTL:   5 * 60,
-			AttemptTTL:     15 * 60,
-			MaxAttempts:    5,
-			PrivacyVersion: envOr("PRIVACY_POLICY_VERSION", "2026-08-01"),
+			JWTSecret:     secret,
+			CookieDomain:  os.Getenv("COOKIE_DOMAIN"),
+			SecureCookies: os.Getenv("INSECURE_COOKIES") != "1",
+			SessionTTL:    8 * 60 * 60,
+			ChallengeTTL:  5 * 60,
+			AttemptTTL:    15 * 60,
+			MaxAttempts:   5,
 		}
 	})
 	return loadCfg, loadErr
@@ -90,9 +88,3 @@ func resolveJWTSecret(ctx context.Context) ([]byte, error) {
 	return []byte(*out.SecretString), nil
 }
 
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}

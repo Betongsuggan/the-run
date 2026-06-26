@@ -39,9 +39,11 @@ type accountItem struct {
 }
 
 type consentItem struct {
-	Granted       bool   `dynamodbav:"granted"`
-	At            string `dynamodbav:"at"`
-	PolicyVersion string `dynamodbav:"policyVersion"`
+	Granted        bool   `dynamodbav:"granted"`
+	At             string `dynamodbav:"at"`
+	PolicyID       string `dynamodbav:"policyId,omitempty"`
+	PolicyRevision int    `dynamodbav:"policyRevision,omitempty"`
+	PolicyVersion  string `dynamodbav:"policyVersion"`
 }
 
 type emailSentinelItem struct {
@@ -64,9 +66,11 @@ func accountFromItem(item accountItem) models.Account {
 	if item.Marketing != nil {
 		at, _ := time.Parse(time.RFC3339, item.Marketing.At)
 		a.Consents.Marketing = models.Consent{
-			Granted:       item.Marketing.Granted,
-			At:            at,
-			PolicyVersion: item.Marketing.PolicyVersion,
+			Granted:        item.Marketing.Granted,
+			At:             at,
+			PolicyID:       item.Marketing.PolicyID,
+			PolicyRevision: item.Marketing.PolicyRevision,
+			PolicyVersion:  item.Marketing.PolicyVersion,
 		}
 	}
 	if item.LastLoginAt != "" {
@@ -97,9 +101,11 @@ func itemFromAccount(a models.Account) accountItem {
 	}
 	if !a.Consents.Marketing.At.IsZero() || a.Consents.Marketing.PolicyVersion != "" {
 		item.Marketing = &consentItem{
-			Granted:       a.Consents.Marketing.Granted,
-			At:            a.Consents.Marketing.At.UTC().Format(time.RFC3339),
-			PolicyVersion: a.Consents.Marketing.PolicyVersion,
+			Granted:        a.Consents.Marketing.Granted,
+			At:             a.Consents.Marketing.At.UTC().Format(time.RFC3339),
+			PolicyID:       a.Consents.Marketing.PolicyID,
+			PolicyRevision: a.Consents.Marketing.PolicyRevision,
+			PolicyVersion:  a.Consents.Marketing.PolicyVersion,
 		}
 	}
 	if a.LastLoginAt != nil {

@@ -104,7 +104,7 @@ func Setup(
 	dynamoPolicy := pulumi.All(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
 		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.MagicTokens.Arn, tables.Audit.Arn,
-		tables.RateLimit.Arn,
+		tables.RateLimit.Arn, tables.Policies.Arn, tables.PolicyRevisions.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
@@ -115,6 +115,8 @@ func Setup(
 		guardianArn := args[6].(string)
 		auditArn := args[7].(string)
 		rateLimitArn := args[8].(string)
+		policiesArn := args[9].(string)
+		policyRevisionsArn := args[10].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -147,6 +149,9 @@ func Setup(
 						guardianArn,
 						auditArn,
 						rateLimitArn,
+						policiesArn,
+						policiesArn + "/index/*",
+						policyRevisionsArn,
 					},
 				},
 			},
@@ -251,21 +256,22 @@ func Setup(
 		Timeout:       pulumi.Int(10),
 		Environment: &awslambda.FunctionEnvironmentArgs{
 			Variables: pulumi.StringMap{
-				"RUNNERS_TABLE_NAME":       tables.Runners.Name,
-				"REGISTRATIONS_TABLE_NAME": tables.Registrations.Name,
-				"EVENTS_TABLE_NAME":        tables.Events.Name,
-				"RACES_TABLE_NAME":         tables.Races.Name,
-				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
-				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
-				"RATE_LIMIT_TABLE_NAME":    tables.RateLimit.Name,
-				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
-				"AUDIT_TABLE_NAME":         tables.Audit.Name,
-				"JWT_SECRET_ARN":           jwtSecret.Arn,
-				"SES_SENDER_ADDRESS":       pulumi.String(em.SenderAddress),
-				"SES_CONFIGURATION_SET":    em.ConfigurationSet.ConfigurationSetName,
-				"COOKIE_DOMAIN":            pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
-				"PRIVACY_POLICY_VERSION":   pulumi.String("2026-08-01"),
-				"SITE_BASE_URL":            pulumi.String("https://" + siteFQDN),
+				"RUNNERS_TABLE_NAME":          tables.Runners.Name,
+				"REGISTRATIONS_TABLE_NAME":    tables.Registrations.Name,
+				"EVENTS_TABLE_NAME":           tables.Events.Name,
+				"RACES_TABLE_NAME":            tables.Races.Name,
+				"ACCOUNTS_TABLE_NAME":         tables.Accounts.Name,
+				"AUTH_ATTEMPTS_TABLE_NAME":    tables.AuthAttempts.Name,
+				"RATE_LIMIT_TABLE_NAME":       tables.RateLimit.Name,
+				"MAGIC_TOKENS_TABLE_NAME":     tables.MagicTokens.Name,
+				"AUDIT_TABLE_NAME":            tables.Audit.Name,
+				"POLICIES_TABLE_NAME":         tables.Policies.Name,
+				"POLICY_REVISIONS_TABLE_NAME": tables.PolicyRevisions.Name,
+				"JWT_SECRET_ARN":              jwtSecret.Arn,
+				"SES_SENDER_ADDRESS":          pulumi.String(em.SenderAddress),
+				"SES_CONFIGURATION_SET":       em.ConfigurationSet.ConfigurationSetName,
+				"COOKIE_DOMAIN":               pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie
+				"SITE_BASE_URL":               pulumi.String("https://" + siteFQDN),
 			},
 		},
 	}, pulumi.DependsOn([]pulumi.Resource{logGroup}))

@@ -8,6 +8,7 @@
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Timer from '@lucide/svelte/icons/timer';
 	import UserCog from '@lucide/svelte/icons/user-cog';
+	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 	import { i18n } from '$lib/i18n/state.svelte';
@@ -82,6 +83,15 @@
 					>
 						<UserCog class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.users}
+					</a>
+				</li>
+				<li>
+					<a
+						href={resolve('/admin/policies')}
+						class={navClass(isActive(resolve('/admin/policies'), false))}
+					>
+						<ScrollText class="size-4" aria-hidden="true" />
+						{i18n.m.admin.nav.policies}
 					</a>
 				</li>
 			</ul>

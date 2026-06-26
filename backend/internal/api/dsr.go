@@ -155,9 +155,11 @@ type dsrRunnerRetentionDTO struct {
 const nonConsentingRunnerWindowMonths = 36
 
 type dsrConsentDTO struct {
-	Granted       bool   `json:"granted"`
-	At            string `json:"at"`
-	PolicyVersion string `json:"policyVersion"`
+	Granted        bool   `json:"granted"`
+	At             string `json:"at"`
+	PolicyID       string `json:"policyId,omitempty"`
+	PolicyRevision int    `json:"policyRevision,omitempty"`
+	PolicyVersion  string `json:"policyVersion"`
 }
 
 type dsrRegistrationDTO struct {
@@ -421,17 +423,30 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		accountID := auth.DSRSubject(ctx)
 		now := time.Now().UTC()
 
+		// Look up the currently-published policy so each new consent stamp
+		// points at the right version. If no policy is published the whole
+		// PATCH is rejected — same rationale as the registration handler.
+		currentPolicy, err := s.GetPublishedPolicy(ctx)
+		if err != nil {
+			if errors.Is(err, store.ErrNoPublishedPolicy) {
+				return nil, huma.Error503ServiceUnavailable("consent updates are paused — no privacy policy is published")
+			}
+			return nil, fmt.Errorf("get published policy: %w", err)
+		}
+
 		// Marketing — fetch the account, mutate, save. Stamp afresh so the
-		// audit trail (consent.At + policyVersion) is always current.
+		// audit trail (consent.At + policyId + revision) is always current.
 		if in.Body.Marketing != nil {
 			account, err := s.GetAccountByID(ctx, accountID)
 			if err != nil {
 				return nil, fmt.Errorf("get account: %w", err)
 			}
 			account.Consents.Marketing = models.Consent{
-				Granted:       *in.Body.Marketing,
-				At:            now,
-				PolicyVersion: authCfg.PrivacyVersion,
+				Granted:        *in.Body.Marketing,
+				At:             now,
+				PolicyID:       currentPolicy.ID,
+				PolicyRevision: currentPolicy.Revision,
+				PolicyVersion:  currentPolicy.Slug,
 			}
 			if err := s.UpdateAccount(ctx, *account); err != nil {
 				return nil, fmt.Errorf("update account: %w", err)
@@ -465,9 +480,11 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 				return nil, huma.Error403Forbidden("runner does not belong to this account")
 			}
 			runner.Consents.PublicResults = models.Consent{
-				Granted:       *update.PublicResults,
-				At:            now,
-				PolicyVersion: authCfg.PrivacyVersion,
+				Granted:        *update.PublicResults,
+				At:             now,
+				PolicyID:       currentPolicy.ID,
+				PolicyRevision: currentPolicy.Revision,
+				PolicyVersion:  currentPolicy.Slug,
 			}
 			if err := s.UpdateRunner(ctx, *runner); err != nil {
 				return nil, fmt.Errorf("update runner: %w", err)
@@ -1259,9 +1276,11 @@ func consentToDTO(c models.Consent) *dsrConsentDTO {
 		return nil
 	}
 	return &dsrConsentDTO{
-		Granted:       c.Granted,
-		At:            c.At.UTC().Format(time.RFC3339),
-		PolicyVersion: c.PolicyVersion,
+		Granted:        c.Granted,
+		At:             c.At.UTC().Format(time.RFC3339),
+		PolicyID:       c.PolicyID,
+		PolicyRevision: c.PolicyRevision,
+		PolicyVersion:  c.PolicyVersion,
 	}
 }
 

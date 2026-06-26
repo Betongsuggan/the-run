@@ -7,10 +7,18 @@ import (
 
 // Consent records a single granted/withdrawn decision against a versioned
 // privacy policy. Used by both Account (marketing) and Runner (public results).
+//
+// PolicyID + PolicyRevision pin the exact policy revision the user accepted —
+// the body of that revision is preserved in the policy-revisions table so the
+// runner can always view the text they consented to. PolicyVersion is the
+// admin-chosen slug (e.g. "2026-08-01") kept alongside for display without
+// needing a lookup.
 type Consent struct {
-	Granted       bool
-	At            time.Time
-	PolicyVersion string
+	Granted        bool
+	At             time.Time
+	PolicyID       string
+	PolicyRevision int
+	PolicyVersion  string
 }
 
 // AccountConsents groups the consent decisions that live on the Account.

@@ -29,27 +29,31 @@ func pitrEnabled() *dynamodb.TablePointInTimeRecoveryArgs {
 }
 
 const (
-	RunnersTableName       = "the-run-runners"
-	RegistrationsTableName = "the-run-registrations"
-	EventsTableName        = "the-run-events"
-	RacesTableName         = "the-run-races"
-	AccountsTableName      = "the-run-accounts"
-	AuthAttemptsTableName  = "the-run-auth-attempts"
-	MagicTokensTableName   = "the-run-magic-tokens"
-	AuditTableName         = "the-run-audit"
-	RateLimitTableName     = "the-run-rate-limit"
+	RunnersTableName         = "the-run-runners"
+	RegistrationsTableName   = "the-run-registrations"
+	EventsTableName          = "the-run-events"
+	RacesTableName           = "the-run-races"
+	AccountsTableName        = "the-run-accounts"
+	AuthAttemptsTableName    = "the-run-auth-attempts"
+	MagicTokensTableName     = "the-run-magic-tokens"
+	AuditTableName           = "the-run-audit"
+	RateLimitTableName       = "the-run-rate-limit"
+	PoliciesTableName        = "the-run-policies"
+	PolicyRevisionsTableName = "the-run-policy-revisions"
 )
 
 type Tables struct {
-	Runners       *dynamodb.Table
-	Registrations *dynamodb.Table
-	Events        *dynamodb.Table
-	Races         *dynamodb.Table
-	Accounts      *dynamodb.Table
-	AuthAttempts  *dynamodb.Table
-	MagicTokens   *dynamodb.Table
-	Audit         *dynamodb.Table
-	RateLimit     *dynamodb.Table
+	Runners         *dynamodb.Table
+	Registrations   *dynamodb.Table
+	Events          *dynamodb.Table
+	Races           *dynamodb.Table
+	Accounts        *dynamodb.Table
+	AuthAttempts    *dynamodb.Table
+	MagicTokens     *dynamodb.Table
+	Audit           *dynamodb.Table
+	RateLimit       *dynamodb.Table
+	Policies        *dynamodb.Table
+	PolicyRevisions *dynamodb.Table
 }
 
 func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
@@ -258,15 +262,66 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		return nil, err
 	}
 
+	// Policies (GDPR B0.1). Versioned privacy-policy records: PK=id (S). The
+	// same table holds primary policy rows (id=UUID, kind="policy") and
+	// slug-uniqueness sentinels (id="SLUG#<slug>", kind="slug-sentinel").
+	// byStatus GSI lets the registration handler resolve "which policy do we
+	// currently stamp consents against" with a single query. PITR is on
+	// because policies are the legal record consents reference; SSE on.
+	policies, err := dynamodb.NewTable(ctx, "policies-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(PoliciesTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("id"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("id"), Type: pulumi.String("S")},
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("status"), Type: pulumi.String("S")},
+		},
+		GlobalSecondaryIndexes: dynamodb.TableGlobalSecondaryIndexArray{
+			&dynamodb.TableGlobalSecondaryIndexArgs{
+				Name:           pulumi.String("byStatus"),
+				HashKey:        pulumi.String("status"),
+				ProjectionType: pulumi.String("ALL"),
+			},
+		},
+		ServerSideEncryption: sseEnabled(),
+		PointInTimeRecovery:  pitrEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Policy revisions — append-only snapshot history. PK=policyId (S),
+	// SK=revision (S, zero-padded so lex order matches numeric). Each row
+	// preserves the body that was live at that revision; consent records
+	// resolve back here so a runner can always read what they accepted.
+	// SSE on. No PITR — the current head is in PoliciesTableName (PITR'd)
+	// and these rows are append-only telemetry on edits.
+	policyRevisions, err := dynamodb.NewTable(ctx, "policy-revisions-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(PolicyRevisionsTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("policyId"),
+		RangeKey:    pulumi.String("revision"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("policyId"), Type: pulumi.String("S")},
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("revision"), Type: pulumi.String("S")},
+		},
+		ServerSideEncryption: sseEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Tables{
-		Runners:       runners,
-		Registrations: registrations,
-		Events:        events,
-		Races:         races,
-		Accounts:      accounts,
-		AuthAttempts:  authAttempts,
-		MagicTokens:   magicTokens,
-		Audit:         audit,
-		RateLimit:     rateLimit,
+		Runners:         runners,
+		Registrations:   registrations,
+		Events:          events,
+		Races:           races,
+		Accounts:        accounts,
+		AuthAttempts:    authAttempts,
+		MagicTokens:     magicTokens,
+		Audit:           audit,
+		RateLimit:       rateLimit,
+		Policies:        policies,
+		PolicyRevisions: policyRevisions,
 	}, nil
 }

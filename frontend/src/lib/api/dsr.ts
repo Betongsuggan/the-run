@@ -9,6 +9,11 @@ export type DSRConsent = {
 	granted: boolean;
 	at: string;
 	policyVersion: string;
+	// FK into the versioned-policy tables. Present on consents recorded
+	// after the policy-editor feature shipped; older rows have only the
+	// human slug in policyVersion and these fields are undefined.
+	policyId?: string;
+	policyRevision?: number;
 };
 
 export type DSRAccount = {

@@ -173,15 +173,17 @@ func setupRetention(
 		Timeout: pulumi.Int(300),
 		Environment: &awslambda.FunctionEnvironmentArgs{
 			Variables: pulumi.StringMap{
-				"RUNNERS_TABLE_NAME":       tables.Runners.Name,
-				"REGISTRATIONS_TABLE_NAME": tables.Registrations.Name,
-				"EVENTS_TABLE_NAME":        tables.Events.Name,
-				"RACES_TABLE_NAME":         tables.Races.Name,
-				"ACCOUNTS_TABLE_NAME":      tables.Accounts.Name,
-				"AUTH_ATTEMPTS_TABLE_NAME": tables.AuthAttempts.Name,
-				"MAGIC_TOKENS_TABLE_NAME":  tables.MagicTokens.Name,
-				"AUDIT_TABLE_NAME":         tables.Audit.Name,
-				"RATE_LIMIT_TABLE_NAME":    tables.RateLimit.Name,
+				"RUNNERS_TABLE_NAME":          tables.Runners.Name,
+				"REGISTRATIONS_TABLE_NAME":    tables.Registrations.Name,
+				"EVENTS_TABLE_NAME":           tables.Events.Name,
+				"RACES_TABLE_NAME":            tables.Races.Name,
+				"ACCOUNTS_TABLE_NAME":         tables.Accounts.Name,
+				"AUTH_ATTEMPTS_TABLE_NAME":    tables.AuthAttempts.Name,
+				"MAGIC_TOKENS_TABLE_NAME":     tables.MagicTokens.Name,
+				"AUDIT_TABLE_NAME":            tables.Audit.Name,
+				"RATE_LIMIT_TABLE_NAME":       tables.RateLimit.Name,
+				"POLICIES_TABLE_NAME":         tables.Policies.Name,
+				"POLICY_REVISIONS_TABLE_NAME": tables.PolicyRevisions.Name,
 				// SES + base URL — the inactivity sweep emails a restore
 				// link to users about to be auto-deleted.
 				"SES_SENDER_ADDRESS":    pulumi.String(em.SenderAddress),

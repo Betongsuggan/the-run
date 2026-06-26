@@ -11,7 +11,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
 
-	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
@@ -29,6 +28,7 @@ type fakeStore struct {
 	races           map[string]models.Race
 	events          map[string]models.Event
 	magicTokens     map[string]models.MagicToken
+	policy          *models.Policy
 }
 
 func newFakeStore() *fakeStore {
@@ -37,12 +37,25 @@ func newFakeStore() *fakeStore {
 		races:           map[string]models.Race{},
 		events:          map[string]models.Event{},
 		magicTokens:     map[string]models.MagicToken{},
+		policy: &models.Policy{
+			ID:       "policy-test-1",
+			Slug:     "2026-08-01",
+			Status:   models.PolicyStatusPublished,
+			Revision: 1,
+		},
 	}
 	// Default seed so the existing adult tests don't have to set this up: a
 	// "race-1" pointing at an event dated 2026-07-01.
 	f.events["evt-1"] = models.Event{ID: "evt-1", Date: "2026-07-01"}
 	f.races["race-1"] = models.Race{ID: "race-1", EventID: "evt-1"}
 	return f
+}
+
+func (f *fakeStore) GetPublishedPolicy(_ context.Context) (*models.Policy, error) {
+	if f.policy == nil {
+		return nil, store.ErrNoPublishedPolicy
+	}
+	return f.policy, nil
 }
 
 func (f *fakeStore) GetRace(_ context.Context, id string) (*models.Race, error) {
@@ -109,13 +122,14 @@ func (f *fakeStore) CreateRegistration(_ context.Context, r models.Registration)
 	return nil
 }
 
-// buildTestAPI wires registerRegistrations onto a humatest API with a fixed
-// PolicyVersion so tests can assert against it.
+// buildTestAPI wires registerRegistrations onto a humatest API. The store is
+// expected to return a published policy via GetPublishedPolicy so consents can
+// be stamped — the fakeStore seeds one in newFakeStore.
 func buildTestAPI(t *testing.T, s store.Store) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t, huma.DefaultConfig("test", "0.0.0"))
 	// NoOp email sender so under-13 paths don't try to hit AWS.
-	registerRegistrations(api, s, auth.Config{PrivacyVersion: "2026-08-01"}, email.NoOpSender{})
+	registerRegistrations(api, s, email.NoOpSender{})
 	return api
 }
 

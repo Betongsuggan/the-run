@@ -166,7 +166,11 @@ const sv = {
 		noUpcomingRaces: 'Det finns inga kommande lopp att anmäla sig till just nu.',
 		eventPast: 'Det här loppet har redan ägt rum och går inte att anmäla sig till.',
 		errorPrefix: 'Något gick fel:',
-		botProtectionNote: 'Skyddat mot automatisk registrering.'
+		botProtectionNote: 'Skyddat mot automatisk registrering.',
+		policyAcceptance: (slug: string) =>
+			`Genom att anmäla dig godkänner du vår <a class="underline" href="/privacy">sekretesspolicy</a> (version ${slug}).`,
+		policyPaused:
+			'Anmälningar är pausade — en uppdaterad sekretesspolicy publiceras snart. Försök igen senare.'
 	},
 	guardianConsent: {
 		verifying: 'Verifierar bekräftelselänken …',
@@ -201,6 +205,10 @@ const sv = {
 		youMarketingConsent: 'Nyhetsbrev',
 		consentGranted: 'Ja',
 		consentNot: 'Nej',
+		consentStamp: (date: string, slug: string, rev: number) =>
+			`Godkänd ${date} – version ${slug} rev ${rev}`,
+		consentStampLegacy: (date: string, slug: string) =>
+			`Godkänd ${date} – version ${slug}`,
 		runnersHeading: (n: number) =>
 			n === 1 ? '1 löpare under ditt konto' : `${n} löpare under ditt konto`,
 		runnersEmpty: 'Inga löpare ännu — anmäl dig själv eller en familjemedlem.',
@@ -345,6 +353,7 @@ const sv = {
 			events: 'Lopp',
 			results: 'Resultat',
 			users: 'Användare',
+			policies: 'Policyer',
 			signedInAs: (email: string) => `Inloggad som ${email}`,
 			logout: 'Logga ut',
 			viewPublicSite: 'Visa publik sida'
@@ -453,7 +462,60 @@ const sv = {
 			iterationNotice:
 				'Inbjudningsflöde och hantering av flera adminanvändare kommer i en senare iteration. Använd just create-admin från terminalen för att skapa fler administratörer.',
 			currentSession: (email: string) => `Inloggad som ${email}.`
+		},
+		policies: {
+			heading: 'Sekretesspolicy',
+			description:
+				'Versionera och publicera den policy som varje anmälan godkänner. Mindre ändringar bumpar revision på den publicerade versionen; större ändringar publiceras som en ny version.',
+			add: 'Ny version',
+			edit: 'Redigera version',
+			empty: 'Ingen policy finns ännu. Skapa ett utkast och publicera det för att aktivera anmälningar.',
+			sectionPublished: 'Publicerad',
+			sectionDrafts: 'Utkast',
+			sectionArchived: 'Arkiverade',
+			columnSlug: 'Version',
+			columnStatus: 'Status',
+			columnRevision: 'Revision',
+			columnEffectiveFrom: 'Träder i kraft',
+			columnUpdated: 'Senast uppdaterad',
+			statusLabel: (s: string): string =>
+				s === 'published' ? 'Publicerad' : s === 'draft' ? 'Utkast' : 'Arkiverad',
+			slugLabel: 'Versionsetikett (visas för användare)',
+			effectiveFromLabel: 'Träder i kraft',
+			noteLabel: 'Ändringsnotering',
+			notePlaceholder: 't.ex. "Förtydligar avsnitt om e-post"',
+			noteHelp:
+				'Loggas i revisionshistoriken. Användare ser inte denna text direkt, men den hjälper er hålla ordning.',
+			tabSv: 'Svenska',
+			tabEn: 'Engelska',
+			tabPreview: 'Förhandsvisning',
+			bodySvPlaceholder: 'Skriv din policy i markdown här (svensk version)',
+			bodyEnPlaceholder: 'Type your policy in markdown here (English version)',
+			editingMeta: (slug: string, rev: number) =>
+				`Redigerar version ${slug} (revision ${rev}).`,
+			publish: 'Publicera',
+			archive: 'Arkivera',
+			preview: 'Förhandsgranska',
+			history: 'Historik',
+			confirmPublish: (slug: string) =>
+				`Publicera version ${slug}? Eventuell tidigare publicerad version arkiveras automatiskt och nya anmälningar börjar gälla mot denna.`,
+			confirmArchive: (slug: string) =>
+				`Arkivera version ${slug}? Anmälningar pausas tills en ny version publiceras.`,
+			historyHeading: (slug: string) => `Historik för ${slug}`,
+			revLive: 'Aktiv vid publicering',
+			revOpen: 'Visa denna revision',
+			revEmpty: 'Inga revisioner ännu.'
 		}
+	},
+	privacy: {
+		pageTitle: 'Sekretesspolicy – Ingmarsöloppet',
+		heading: 'Sekretesspolicy',
+		loading: 'Laddar policy …',
+		notPublished:
+			'Sekretesspolicyn håller på att uppdateras. Anmälningar är pausade tills den är publicerad igen.',
+		versionLabel: (slug: string, rev: number) => `Version ${slug} · rev ${rev}`,
+		historicalBadge: 'Tidigare revision',
+		viewCurrent: 'Visa aktuell version'
 	}
 };
 
@@ -618,7 +680,11 @@ const en: Catalog = {
 		noUpcomingRaces: 'There are no upcoming races to sign up for right now.',
 		eventPast: 'This race has already taken place and is no longer open for sign-ups.',
 		errorPrefix: 'Something went wrong:',
-		botProtectionNote: 'Protected against automated sign-ups.'
+		botProtectionNote: 'Protected against automated sign-ups.',
+		policyAcceptance: (slug: string) =>
+			`By signing up you accept our <a class="underline" href="/privacy">privacy policy</a> (version ${slug}).`,
+		policyPaused:
+			'Registrations are paused — an updated privacy policy is being published. Please try again later.'
 	},
 	guardianConsent: {
 		verifying: 'Verifying confirmation link …',
@@ -654,6 +720,10 @@ const en: Catalog = {
 		youMarketingConsent: 'Newsletter',
 		consentGranted: 'Yes',
 		consentNot: 'No',
+		consentStamp: (date: string, slug: string, rev: number) =>
+			`Accepted ${date} – version ${slug} rev ${rev}`,
+		consentStampLegacy: (date: string, slug: string) =>
+			`Accepted ${date} – version ${slug}`,
 		runnersHeading: (n: number) =>
 			n === 1 ? '1 runner under your account' : `${n} runners under your account`,
 		runnersEmpty: 'No runners yet — sign yourself or a family member up.',
@@ -796,6 +866,7 @@ const en: Catalog = {
 			events: 'Events',
 			results: 'Results',
 			users: 'Users',
+			policies: 'Policies',
 			signedInAs: (email: string) => `Signed in as ${email}`,
 			logout: 'Sign out',
 			viewPublicSite: 'View public site'
@@ -905,7 +976,60 @@ const en: Catalog = {
 			iterationNotice:
 				'Invitation flow and multi-admin management is a later iteration. Use just create-admin from the terminal to add more administrators.',
 			currentSession: (email: string) => `Signed in as ${email}.`
+		},
+		policies: {
+			heading: 'Privacy policy',
+			description:
+				'Version and publish the policy each registration accepts. Minor edits bump the revision on the published policy; larger changes publish as a new version.',
+			add: 'New version',
+			edit: 'Edit version',
+			empty: 'No policy yet. Create a draft and publish it before registrations can be accepted.',
+			sectionPublished: 'Published',
+			sectionDrafts: 'Drafts',
+			sectionArchived: 'Archived',
+			columnSlug: 'Version',
+			columnStatus: 'Status',
+			columnRevision: 'Revision',
+			columnEffectiveFrom: 'Effective from',
+			columnUpdated: 'Last updated',
+			statusLabel: (s: string) =>
+				s === 'published' ? 'Published' : s === 'draft' ? 'Draft' : 'Archived',
+			slugLabel: 'Version label (visible to users)',
+			effectiveFromLabel: 'Effective from',
+			noteLabel: 'Change note',
+			notePlaceholder: 'e.g. "Clarify email section"',
+			noteHelp:
+				'Logged in the revision history. Users don’t see this directly, but it helps you keep track.',
+			tabSv: 'Swedish',
+			tabEn: 'English',
+			tabPreview: 'Preview',
+			bodySvPlaceholder: 'Skriv din policy i markdown här (svensk version)',
+			bodyEnPlaceholder: 'Type your policy in markdown here (English version)',
+			editingMeta: (slug: string, rev: number) =>
+				`Editing version ${slug} (revision ${rev}).`,
+			publish: 'Publish',
+			archive: 'Archive',
+			preview: 'Preview',
+			history: 'History',
+			confirmPublish: (slug: string) =>
+				`Publish version ${slug}? Any previously published version will be archived automatically and new registrations will start using this one.`,
+			confirmArchive: (slug: string) =>
+				`Archive version ${slug}? Registrations are paused until a new version is published.`,
+			historyHeading: (slug: string) => `History for ${slug}`,
+			revLive: 'Live at publish',
+			revOpen: 'View this revision',
+			revEmpty: 'No revisions yet.'
 		}
+	},
+	privacy: {
+		pageTitle: 'Privacy policy – Ingmarsöloppet',
+		heading: 'Privacy policy',
+		loading: 'Loading policy…',
+		notPublished:
+			'The privacy policy is being updated. Registrations are paused until it is published again.',
+		versionLabel: (slug: string, rev: number) => `Version ${slug} · rev ${rev}`,
+		historicalBadge: 'Earlier revision',
+		viewCurrent: 'View current version'
 	}
 };
 

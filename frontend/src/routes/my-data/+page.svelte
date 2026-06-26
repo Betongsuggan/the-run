@@ -537,6 +537,28 @@
 								: i18n.m.myData.consentNot}
 						</span>
 					</label>
+					{#if me.account.marketingConsent?.policyVersion}
+						{@const consent = me.account.marketingConsent}
+						<div class="text-xs opacity-60 pl-6 pt-0.5">
+							{#if consent.policyId && consent.policyRevision}
+								<a
+									href={`/privacy?v=${encodeURIComponent(consent.policyId)}&r=${consent.policyRevision}`}
+									class="underline hover:text-primary-700 dark:hover:text-primary-300"
+								>
+									{i18n.m.myData.consentStamp(
+										consent.at.slice(0, 10),
+										consent.policyVersion,
+										consent.policyRevision
+									)}
+								</a>
+							{:else}
+								{i18n.m.myData.consentStampLegacy(
+									consent.at.slice(0, 10),
+									consent.policyVersion
+								)}
+							{/if}
+						</div>
+					{/if}
 				</dd>
 			</dl>
 			{#if me.account.inactivityDeletionAt && !me.account.deletionPendingUntil}
@@ -602,6 +624,28 @@
 								/>
 								<span>{i18n.m.myData.runnersPublicResults}</span>
 							</label>
+							{#if r.publicResultsConsent?.policyVersion}
+								{@const consent = r.publicResultsConsent}
+								<div class="text-xs opacity-60 pl-6">
+									{#if consent.policyId && consent.policyRevision}
+										<a
+											href={`/privacy?v=${encodeURIComponent(consent.policyId)}&r=${consent.policyRevision}`}
+											class="underline hover:text-primary-700 dark:hover:text-primary-300"
+										>
+											{i18n.m.myData.consentStamp(
+												consent.at.slice(0, 10),
+												consent.policyVersion,
+												consent.policyRevision
+											)}
+										</a>
+									{:else}
+										{i18n.m.myData.consentStampLegacy(
+											consent.at.slice(0, 10),
+											consent.policyVersion
+										)}
+									{/if}
+								</div>
+							{/if}
 							{#if isUnder13}
 								<p class="text-xs italic opacity-60 pl-6">
 									{i18n.m.myData.runnersUnder13Note(r.name)}

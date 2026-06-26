@@ -75,3 +75,34 @@ export type ResultExpanded = Result & {
 	event: RaceEvent;
 	runner: Runner;
 };
+
+export type PolicyStatus = 'draft' | 'published' | 'archived';
+
+// Versioned privacy policy. The body is admin-authored markdown; the
+// `slug` is the human-facing version label runners see (e.g. "2026-08-01").
+// `revision` bumps on in-place edits of a published policy and is part of
+// the FK referenced by each Consent record.
+export type Policy = {
+	id: ID;
+	slug: string;
+	status: PolicyStatus;
+	revision: number;
+	effectiveFrom: string;
+	bodySv: string;
+	bodyEn: string;
+	publishedAt?: string;
+	updatedAt?: string;
+};
+
+// One snapshot in the edit history of a policy. Returned from
+// /admin/policies/{id}/revisions and /policies/{id}/revisions/{n}; the
+// body is the exact text that was live at that revision.
+export type PolicyRevision = {
+	policyId: ID;
+	revision: number;
+	bodySv: string;
+	bodyEn: string;
+	editedAt: string;
+	note?: string;
+	published: boolean;
+};

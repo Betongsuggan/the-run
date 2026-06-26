@@ -6,7 +6,8 @@
 	import Shield from '@lucide/svelte/icons/shield';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 	import { listEvents, listRacesForEvent, registerForRace } from '$lib/api';
-	import type { Gender, Race, RaceEvent } from '$lib/types';
+	import { api } from '$lib/http';
+	import type { Gender, Policy, Race, RaceEvent } from '$lib/types';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { formatDate, formatRaceName } from '$lib/format';
 	import Hero from '$lib/components/Hero.svelte';
@@ -40,6 +41,14 @@
 	let success = $state(false);
 	let successStatus = $state<'received' | 'pending_guardian_consent' | ''>('');
 
+	// Currently-published privacy policy. We display its slug next to the
+	// consent checkboxes (so the user knows which version they're agreeing
+	// to) and link to /privacy. If the API returns 503 ("no published
+	// policy") we disable submit — the backend would refuse anyway, but
+	// surfacing it client-side avoids a confusing error after fill-in.
+	let policy = $state<Policy | null>(null);
+	let policyPaused = $state(false);
+
 	const today = new Date().toISOString().slice(0, 10);
 
 	function isUpcoming(event: RaceEvent): boolean {
@@ -69,6 +78,18 @@
 	const isTeen = $derived(ageAtRace !== null && ageAtRace >= 13 && ageAtRace < 18);
 
 	onMount(async () => {
+		// Best-effort policy lookup. 503 = registrations paused; any other
+		// error is surfaced once the user tries to submit.
+		try {
+			policy = await api<Policy>('/policies/current');
+			policyPaused = false;
+		} catch (err) {
+			if (err instanceof Error && /503/.test(err.message)) {
+				policyPaused = true;
+			}
+			policy = null;
+		}
+
 		const events = await listEvents();
 		const futureEvents = events.filter(isUpcoming);
 		const lists = await Promise.all(
@@ -270,6 +291,15 @@
 				</label>
 
 				<div class="space-y-3 border-t border-surface-200-800 pt-4">
+					{#if policy}
+						<p class="text-xs opacity-80">
+							{@html i18n.m.register.policyAcceptance(policy.slug)}
+						</p>
+					{:else if policyPaused}
+						<p class="text-xs text-warning-700 dark:text-warning-300">
+							{i18n.m.register.policyPaused}
+						</p>
+					{/if}
 					<label class="flex items-start gap-3">
 						<input type="checkbox" class="checkbox mt-0.5" bind:checked={publicResults} />
 						<span class="text-sm">
@@ -309,7 +339,11 @@
 						<Shield class="size-3.5" />
 						{i18n.m.register.botProtectionNote}
 					</span>
-					<button type="submit" disabled={submitting} class="btn preset-filled-primary-500">
+					<button
+						type="submit"
+						disabled={submitting || policyPaused}
+						class="btn preset-filled-primary-500"
+					>
 						{submitting ? i18n.m.register.submitting : i18n.m.register.submit}
 					</button>
 				</div>

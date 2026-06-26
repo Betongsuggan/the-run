@@ -24,7 +24,7 @@ func Register(
 
 	registerHello(api)
 	registerAuth(api, s, authCfg)
-	registerRegistrations(api, s, authCfg, sender)
+	registerRegistrations(api, s, sender)
 	registerEvents(api, s, authCfg)
 	registerRaces(api, s, authCfg)
 	registerRunners(api, s, authCfg)
@@ -32,6 +32,8 @@ func Register(
 	registerResults(api, s, authCfg)
 	registerGuardianConsent(api, s)
 	registerDSR(api, s, authCfg, sender, recorder)
+	registerPolicies(api, s)
+	registerAdminPolicies(api, s, authCfg, recorder)
 
 	return api
 }

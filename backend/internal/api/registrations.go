@@ -16,7 +16,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
-	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/ratelimit"
@@ -85,7 +84,7 @@ type RegisterOutput struct {
 	}
 }
 
-func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sender email.Sender) {
+func registerRegistrations(api huma.API, s store.Store, sender email.Sender) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "register-for-race",
 		Method:        "POST",
@@ -119,6 +118,19 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sen
 				}
 				log.Printf("rate limit check failed: bucket=%s err=%v", bucket, err)
 			}
+		}
+
+		// Look up the currently-published privacy policy. Every consent we
+		// record needs a policy to bind to — without one we have nothing to
+		// stamp on the marketing/publicResults consent rows. Reject early
+		// so the user doesn't fill the form before learning we're paused.
+		currentPolicy, err := s.GetPublishedPolicy(ctx)
+		if err != nil {
+			if errors.Is(err, store.ErrNoPublishedPolicy) {
+				log.Printf("registration rejected: no published privacy policy")
+				return nil, huma.Error503ServiceUnavailable("registrations are temporarily paused — please try again later")
+			}
+			return nil, fmt.Errorf("get published policy: %w", err)
 		}
 
 		addr, err := mail.ParseAddress(in.Body.Email)
@@ -179,9 +191,11 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sen
 				CreatedAt: now,
 				Consents: models.AccountConsents{
 					Marketing: models.Consent{
-						Granted:       in.Body.Marketing,
-						At:            now,
-						PolicyVersion: authCfg.PrivacyVersion,
+						Granted:        in.Body.Marketing,
+						At:             now,
+						PolicyID:       currentPolicy.ID,
+						PolicyRevision: currentPolicy.Revision,
+						PolicyVersion:  currentPolicy.Slug,
 					},
 				},
 			}
@@ -226,9 +240,11 @@ func registerRegistrations(api huma.API, s store.Store, authCfg auth.Config, sen
 				CreatedAt: now,
 				Consents: models.RunnerConsents{
 					PublicResults: models.Consent{
-						Granted:       in.Body.PublicResults,
-						At:            now,
-						PolicyVersion: authCfg.PrivacyVersion,
+						Granted:        in.Body.PublicResults,
+						At:             now,
+						PolicyID:       currentPolicy.ID,
+						PolicyRevision: currentPolicy.Revision,
+						PolicyVersion:  currentPolicy.Slug,
 					},
 				},
 			}

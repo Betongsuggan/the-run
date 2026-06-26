@@ -23,6 +23,16 @@ var ErrNotFound = errors.New("not found")
 // create (e.g. duplicate runner name+DOB). API layer maps this to HTTP 409.
 var ErrAlreadyExists = errors.New("already exists")
 
+// ErrNoPublishedPolicy is returned by GetPublishedPolicy when no policy is
+// currently in the "published" status. Registration handlers map this to a
+// 503 so the form refuses to take a consent it can't bind to a policy.
+var ErrNoPublishedPolicy = errors.New("no published privacy policy")
+
+// ErrInvalidPolicyState is returned by lifecycle transitions when the source
+// policy isn't in the expected status (e.g. publishing something already
+// archived). API layer maps this to HTTP 409.
+var ErrInvalidPolicyState = errors.New("policy is not in the required state for this transition")
+
 // RegistrationUpdate carries the optional fields a bulk/single update can
 // modify. nil fields are left unchanged; pointer-typed numeric fields use
 // the zero pointer to mean "clear", as DynamoDB UpdateItem REMOVE.
@@ -124,4 +134,27 @@ type Store interface {
 	GetMagicToken(ctx context.Context, id string) (*models.MagicToken, error)
 	MarkMagicTokenUsed(ctx context.Context, id string, at time.Time) error
 	DeleteMagicToken(ctx context.Context, id string) error
+
+	// Privacy policies — versioned, admin-editable records. Each Consent
+	// (account marketing, runner public-results) references the (PolicyID,
+	// PolicyRevision) it was granted under. Snapshot bodies live in
+	// the-run-policy-revisions so the exact text is preserved even after
+	// admin edits.
+	//
+	// CreatePolicyDraft returns ErrAlreadyExists if the slug is already
+	// taken. PublishPolicy archives the currently-published policy (if any)
+	// in the same transaction, guaranteeing exactly-one-published.
+	// GetPublishedPolicy returns ErrNoPublishedPolicy when nothing is
+	// published yet — registration handlers map this to 503.
+	CreatePolicyDraft(ctx context.Context, p models.Policy) error
+	UpdatePolicyDraft(ctx context.Context, id, bodySv, bodyEn, editor string) error
+	EditPublishedPolicy(ctx context.Context, id, bodySv, bodyEn, editor, note string) (newRevision int, err error)
+	PublishPolicy(ctx context.Context, id, publisherID string, at time.Time) error
+	ArchivePolicy(ctx context.Context, id string) error
+	GetPolicyByID(ctx context.Context, id string) (*models.Policy, error)
+	GetPolicyBySlug(ctx context.Context, slug string) (*models.Policy, error)
+	GetPublishedPolicy(ctx context.Context) (*models.Policy, error)
+	ListPolicies(ctx context.Context) ([]models.Policy, error)
+	GetPolicyRevision(ctx context.Context, policyID string, revision int) (*models.PolicyRevision, error)
+	ListPolicyRevisions(ctx context.Context, policyID string) ([]models.PolicyRevision, error)
 }

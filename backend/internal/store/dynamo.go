@@ -23,18 +23,21 @@ const (
 	byAccountIndex = "byAccount"
 	byRunnerIndex  = "byRunner"
 	byEventIndex   = "byEvent"
+	byStatusIndex  = "byStatus"
 )
 
 type DynamoStore struct {
-	client             *dynamodb.Client
-	runnersTable       string
-	registrationsTable string
-	eventsTable        string
-	racesTable         string
-	accountsTable      string
-	authAttemptsTable  string
-	magicTokensTable   string
-	rateLimitTable     string
+	client                 *dynamodb.Client
+	runnersTable           string
+	registrationsTable     string
+	eventsTable            string
+	racesTable             string
+	accountsTable          string
+	authAttemptsTable      string
+	magicTokensTable       string
+	rateLimitTable         string
+	policiesTable          string
+	policyRevisionsTable   string
 }
 
 // NewDynamoStoreFromEnv reads RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME,
@@ -50,8 +53,10 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	authAttemptsTable := os.Getenv("AUTH_ATTEMPTS_TABLE_NAME")
 	magicTokensTable := os.Getenv("MAGIC_TOKENS_TABLE_NAME")
 	rateLimitTable := os.Getenv("RATE_LIMIT_TABLE_NAME")
-	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || magicTokensTable == "" || rateLimitTable == "" {
-		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, MAGIC_TOKENS_TABLE_NAME, RATE_LIMIT_TABLE_NAME must all be set")
+	policiesTable := os.Getenv("POLICIES_TABLE_NAME")
+	policyRevisionsTable := os.Getenv("POLICY_REVISIONS_TABLE_NAME")
+	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || magicTokensTable == "" || rateLimitTable == "" || policiesTable == "" || policyRevisionsTable == "" {
+		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, MAGIC_TOKENS_TABLE_NAME, RATE_LIMIT_TABLE_NAME, POLICIES_TABLE_NAME, POLICY_REVISIONS_TABLE_NAME must all be set")
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
@@ -67,15 +72,17 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	}
 
 	return &DynamoStore{
-		client:             dynamodb.NewFromConfig(cfg, optFns...),
-		runnersTable:       runnersTable,
-		registrationsTable: registrationsTable,
-		eventsTable:        eventsTable,
-		racesTable:         racesTable,
-		accountsTable:      accountsTable,
-		authAttemptsTable:  authAttemptsTable,
-		magicTokensTable:   magicTokensTable,
-		rateLimitTable:     rateLimitTable,
+		client:               dynamodb.NewFromConfig(cfg, optFns...),
+		runnersTable:         runnersTable,
+		registrationsTable:   registrationsTable,
+		eventsTable:          eventsTable,
+		racesTable:           racesTable,
+		accountsTable:        accountsTable,
+		authAttemptsTable:    authAttemptsTable,
+		magicTokensTable:     magicTokensTable,
+		rateLimitTable:       rateLimitTable,
+		policiesTable:        policiesTable,
+		policyRevisionsTable: policyRevisionsTable,
 	}, nil
 }
 
@@ -106,9 +113,11 @@ func runnerFromItem(item runnerItem) models.Runner {
 	if item.PublicResults != nil {
 		at, _ := time.Parse(time.RFC3339, item.PublicResults.At)
 		r.Consents.PublicResults = models.Consent{
-			Granted:       item.PublicResults.Granted,
-			At:            at,
-			PolicyVersion: item.PublicResults.PolicyVersion,
+			Granted:        item.PublicResults.Granted,
+			At:             at,
+			PolicyID:       item.PublicResults.PolicyID,
+			PolicyRevision: item.PublicResults.PolicyRevision,
+			PolicyVersion:  item.PublicResults.PolicyVersion,
 		}
 	}
 	if item.DeletionPendingUntil != "" {
@@ -132,9 +141,11 @@ func itemFromRunner(r models.Runner) runnerItem {
 	}
 	if !r.Consents.PublicResults.At.IsZero() || r.Consents.PublicResults.PolicyVersion != "" {
 		item.PublicResults = &consentItem{
-			Granted:       r.Consents.PublicResults.Granted,
-			At:            r.Consents.PublicResults.At.UTC().Format(time.RFC3339),
-			PolicyVersion: r.Consents.PublicResults.PolicyVersion,
+			Granted:        r.Consents.PublicResults.Granted,
+			At:             r.Consents.PublicResults.At.UTC().Format(time.RFC3339),
+			PolicyID:       r.Consents.PublicResults.PolicyID,
+			PolicyRevision: r.Consents.PublicResults.PolicyRevision,
+			PolicyVersion:  r.Consents.PublicResults.PolicyVersion,
 		}
 	}
 	if r.DeletionPendingUntil != nil {

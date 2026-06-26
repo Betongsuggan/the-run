@@ -48,7 +48,9 @@
 	},
 	"dependencies": {
 		"@types/qrcode": "^1.5.6",
+		"dompurify": "^3.2.2",
 		"layerchart": "^1.0.13",
+		"marked": "^15.0.4",
 		"qrcode": "^1.5.4"
 	}
 }
