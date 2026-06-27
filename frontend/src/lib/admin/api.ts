@@ -127,6 +127,9 @@ function toUpdatePayload(u: RegistrationUpdate) {
 	if (u.splits !== undefined) body.splits = u.splits;
 	if (u.finishSeconds === null) body.clearFinish = true;
 	else if (u.finishSeconds !== undefined) body.finishSeconds = u.finishSeconds;
+	// paymentReceivedAt: empty string clears, non-empty (RFC3339 or the
+	// "now" sentinel) sets, undefined leaves untouched.
+	if (u.paymentReceivedAt !== undefined) body.paymentReceivedAt = u.paymentReceivedAt;
 	return body;
 }
 

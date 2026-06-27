@@ -41,17 +41,19 @@ var ErrInvalidEmailTemplateState = errors.New("email template is not in the requ
 // modify. nil fields are left unchanged; pointer-typed numeric fields use
 // the zero pointer to mean "clear", as DynamoDB UpdateItem REMOVE.
 type RegistrationUpdate struct {
-	RaceID        string
-	RunnerID      string
-	Status        *string
-	Bib           *string
-	Category      *models.Category
-	FinishSeconds *int
-	ClearFinish   bool
-	Splits        []models.Split
-	ClearSplits   bool
-	Conditions    *string
-	Notes         *string
+	RaceID            string
+	RunnerID          string
+	Status            *string
+	Bib               *string
+	Category          *models.Category
+	FinishSeconds     *int
+	ClearFinish       bool
+	Splits            []models.Split
+	ClearSplits       bool
+	Conditions        *string
+	Notes             *string
+	PaymentReceivedAt *time.Time
+	ClearPayment      bool
 }
 
 type Store interface {

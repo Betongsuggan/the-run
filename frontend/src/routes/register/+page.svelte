@@ -9,7 +9,7 @@
 	import { api } from '$lib/http';
 	import type { Gender, Policy, Race, RaceEvent } from '$lib/types';
 	import { i18n } from '$lib/i18n/state.svelte';
-	import { formatDate, formatRaceName } from '$lib/format';
+	import { formatDate, formatRaceName, formatFee } from '$lib/format';
 	import Hero from '$lib/components/Hero.svelte';
 	import SectionHeader from '$lib/components/SectionHeader.svelte';
 
@@ -55,11 +55,11 @@
 		return event.date >= today;
 	}
 
+	const selectedRace = $derived(upcoming.find((u) => u.race.id === raceId));
 	// Selected race's event date, used to compute age-at-race for the minor
 	// branching. Falls back to today before a race is selected.
-	const selectedRaceDate = $derived(
-		upcoming.find((u) => u.race.id === raceId)?.event.date ?? today
-	);
+	const selectedRaceDate = $derived(selectedRace?.event.date ?? today);
+	const selectedFeeOre = $derived(selectedRace?.race.registrationFeeOre ?? 0);
 
 	// Age the runner will be on race day, given the DOB they've typed. Returns
 	// null until both fields are populated so the UI doesn't flash a "kids
@@ -288,6 +288,11 @@
 							</option>
 						{/each}
 					</select>
+					{#if selectedFeeOre > 0}
+						<span class="text-xs opacity-75 block pt-1">
+							{i18n.m.register.feeLine({ amount: formatFee(selectedFeeOre) })}
+						</span>
+					{/if}
 				</label>
 
 				<div class="space-y-3 border-t border-surface-200-800 pt-4">

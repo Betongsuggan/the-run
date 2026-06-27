@@ -58,3 +58,13 @@ export function formatCategory(cat: Category): string {
 	}
 	return parts.join(' ');
 }
+
+// formatFee renders a fee in öre as a human-friendly SEK string. 25000 → "250 kr",
+// 25050 → "250,50 kr". Returns the empty string for zero/negative input.
+export function formatFee(ore: number): string {
+	if (!ore || ore <= 0) return '';
+	const kr = Math.floor(ore / 100);
+	const rem = ore % 100;
+	if (rem === 0) return `${kr} kr`;
+	return `${kr},${rem.toString().padStart(2, '0')} kr`;
+}

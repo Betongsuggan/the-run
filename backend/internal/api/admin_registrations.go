@@ -28,16 +28,17 @@ type SplitDTO struct {
 }
 
 type RegistrationDTO struct {
-	ID            string       `json:"id"`
-	RaceID        string       `json:"raceId"`
-	RunnerID      string       `json:"runnerId"`
-	Bib           string       `json:"bib,omitempty"`
-	Category      *CategoryDTO `json:"category,omitempty"`
-	Status        string       `json:"status"`
-	FinishSeconds *int         `json:"finishSeconds,omitempty"`
-	Splits        []SplitDTO   `json:"splits,omitempty"`
-	Conditions    string       `json:"conditions,omitempty"`
-	Notes         string       `json:"notes,omitempty"`
+	ID                string       `json:"id"`
+	RaceID            string       `json:"raceId"`
+	RunnerID          string       `json:"runnerId"`
+	Bib               string       `json:"bib,omitempty"`
+	Category          *CategoryDTO `json:"category,omitempty"`
+	Status            string       `json:"status"`
+	FinishSeconds     *int         `json:"finishSeconds,omitempty"`
+	Splits            []SplitDTO   `json:"splits,omitempty"`
+	Conditions        string       `json:"conditions,omitempty"`
+	Notes             string       `json:"notes,omitempty"`
+	PaymentReceivedAt string       `json:"paymentReceivedAt,omitempty"`
 }
 
 func registrationToDTO(r models.Registration) RegistrationDTO {
@@ -62,6 +63,9 @@ func registrationToDTO(r models.Registration) RegistrationDTO {
 		for i, s := range r.Splits {
 			dto.Splits[i] = SplitDTO{Km: s.Km, TimeSeconds: s.TimeSeconds}
 		}
+	}
+	if r.PaymentReceivedAt != nil {
+		dto.PaymentReceivedAt = r.PaymentReceivedAt.UTC().Format(time.RFC3339)
 	}
 	return dto
 }
@@ -95,15 +99,16 @@ type createAdminRegistrationInput struct {
 }
 
 type registrationFields struct {
-	Status        *string      `json:"status,omitempty" enum:"pending,finished,dnf,dns"`
-	Bib           *string      `json:"bib,omitempty"`
-	Category      *CategoryDTO `json:"category,omitempty"`
-	FinishSeconds *int         `json:"finishSeconds,omitempty"`
-	ClearFinish   bool         `json:"clearFinish,omitempty"`
-	Splits        []SplitDTO   `json:"splits,omitempty"`
-	ClearSplits   bool         `json:"clearSplits,omitempty"`
-	Conditions    *string      `json:"conditions,omitempty"`
-	Notes         *string      `json:"notes,omitempty"`
+	Status            *string      `json:"status,omitempty" enum:"pending,finished,dnf,dns"`
+	Bib               *string      `json:"bib,omitempty"`
+	Category          *CategoryDTO `json:"category,omitempty"`
+	FinishSeconds     *int         `json:"finishSeconds,omitempty"`
+	ClearFinish       bool         `json:"clearFinish,omitempty"`
+	Splits            []SplitDTO   `json:"splits,omitempty"`
+	ClearSplits       bool         `json:"clearSplits,omitempty"`
+	Conditions        *string      `json:"conditions,omitempty"`
+	Notes             *string      `json:"notes,omitempty"`
+	PaymentReceivedAt *string      `json:"paymentReceivedAt,omitempty" doc:"RFC3339 timestamp to mark payment received; empty string to clear; omitted to leave unchanged"`
 }
 
 type updateRegistrationInput struct {
@@ -113,30 +118,32 @@ type updateRegistrationInput struct {
 }
 
 type bulkRegistrationUpdate struct {
-	RaceID        string       `json:"raceId" minLength:"1"`
-	RunnerID      string       `json:"runnerId" minLength:"1"`
-	Status        *string      `json:"status,omitempty" enum:"pending,finished,dnf,dns"`
-	Bib           *string      `json:"bib,omitempty"`
-	Category      *CategoryDTO `json:"category,omitempty"`
-	FinishSeconds *int         `json:"finishSeconds,omitempty"`
-	ClearFinish   bool         `json:"clearFinish,omitempty"`
-	Splits        []SplitDTO   `json:"splits,omitempty"`
-	ClearSplits   bool         `json:"clearSplits,omitempty"`
-	Conditions    *string      `json:"conditions,omitempty"`
-	Notes         *string      `json:"notes,omitempty"`
+	RaceID            string       `json:"raceId" minLength:"1"`
+	RunnerID          string       `json:"runnerId" minLength:"1"`
+	Status            *string      `json:"status,omitempty" enum:"pending,finished,dnf,dns"`
+	Bib               *string      `json:"bib,omitempty"`
+	Category          *CategoryDTO `json:"category,omitempty"`
+	FinishSeconds     *int         `json:"finishSeconds,omitempty"`
+	ClearFinish       bool         `json:"clearFinish,omitempty"`
+	Splits            []SplitDTO   `json:"splits,omitempty"`
+	ClearSplits       bool         `json:"clearSplits,omitempty"`
+	Conditions        *string      `json:"conditions,omitempty"`
+	Notes             *string      `json:"notes,omitempty"`
+	PaymentReceivedAt *string      `json:"paymentReceivedAt,omitempty"`
 }
 
 func (b bulkRegistrationUpdate) fields() registrationFields {
 	return registrationFields{
-		Status:        b.Status,
-		Bib:           b.Bib,
-		Category:      b.Category,
-		FinishSeconds: b.FinishSeconds,
-		ClearFinish:   b.ClearFinish,
-		Splits:        b.Splits,
-		ClearSplits:   b.ClearSplits,
-		Conditions:    b.Conditions,
-		Notes:         b.Notes,
+		Status:            b.Status,
+		Bib:               b.Bib,
+		Category:          b.Category,
+		FinishSeconds:     b.FinishSeconds,
+		ClearFinish:       b.ClearFinish,
+		Splits:            b.Splits,
+		ClearSplits:       b.ClearSplits,
+		Conditions:        b.Conditions,
+		Notes:             b.Notes,
+		PaymentReceivedAt: b.PaymentReceivedAt,
 	}
 }
 
@@ -171,6 +178,24 @@ func toStoreUpdate(raceID, runnerID string, f registrationFields) (store.Registr
 		u.Splits = make([]models.Split, len(f.Splits))
 		for i, s := range f.Splits {
 			u.Splits[i] = models.Split{Km: s.Km, TimeSeconds: s.TimeSeconds}
+		}
+	}
+	if f.PaymentReceivedAt != nil {
+		// Empty string = clear the field; non-empty = parse as RFC3339 (or
+		// accept the sentinel "now" so the client doesn't need a clock).
+		raw := strings.TrimSpace(*f.PaymentReceivedAt)
+		switch raw {
+		case "":
+			u.ClearPayment = true
+		case "now":
+			now := time.Now().UTC()
+			u.PaymentReceivedAt = &now
+		default:
+			t, err := time.Parse(time.RFC3339, raw)
+			if err != nil {
+				return u, fmt.Errorf("paymentReceivedAt must be RFC3339 or empty: %w", err)
+			}
+			u.PaymentReceivedAt = &t
 		}
 	}
 	if f.Status != nil && *f.Status == models.StatusFinished {

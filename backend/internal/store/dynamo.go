@@ -444,25 +444,27 @@ func (s *DynamoStore) DeleteEvent(ctx context.Context, id string) error {
 // ─── Races ────────────────────────────────────────────────────────────
 
 type raceItem struct {
-	ID             string `dynamodbav:"id"`
-	EventID        string `dynamodbav:"eventId"`
-	Name           string `dynamodbav:"name"`
-	DistanceMeters int    `dynamodbav:"distanceMeters"`
-	Discipline     string `dynamodbav:"discipline"`
-	MaxRunners     int    `dynamodbav:"maxRunners,omitempty"`
-	CreatedAt      string `dynamodbav:"createdAt"`
+	ID                 string `dynamodbav:"id"`
+	EventID            string `dynamodbav:"eventId"`
+	Name               string `dynamodbav:"name"`
+	DistanceMeters     int    `dynamodbav:"distanceMeters"`
+	Discipline         string `dynamodbav:"discipline"`
+	MaxRunners         int    `dynamodbav:"maxRunners,omitempty"`
+	RegistrationFeeOre int    `dynamodbav:"registrationFeeOre,omitempty"`
+	CreatedAt          string `dynamodbav:"createdAt"`
 }
 
 func raceFromItem(item raceItem) models.Race {
 	createdAt, _ := time.Parse(time.RFC3339, item.CreatedAt)
 	return models.Race{
-		ID:             item.ID,
-		EventID:        item.EventID,
-		Name:           item.Name,
-		DistanceMeters: item.DistanceMeters,
-		Discipline:     item.Discipline,
-		MaxRunners:     item.MaxRunners,
-		CreatedAt:      createdAt,
+		ID:                 item.ID,
+		EventID:            item.EventID,
+		Name:               item.Name,
+		DistanceMeters:     item.DistanceMeters,
+		Discipline:         item.Discipline,
+		MaxRunners:         item.MaxRunners,
+		RegistrationFeeOre: item.RegistrationFeeOre,
+		CreatedAt:          createdAt,
 	}
 }
 
@@ -528,13 +530,14 @@ func (s *DynamoStore) GetRace(ctx context.Context, id string) (*models.Race, err
 
 func (s *DynamoStore) CreateRace(ctx context.Context, r models.Race) error {
 	item, err := attributevalue.MarshalMap(raceItem{
-		ID:             r.ID,
-		EventID:        r.EventID,
-		Name:           r.Name,
-		DistanceMeters: r.DistanceMeters,
-		Discipline:     r.Discipline,
-		MaxRunners:     r.MaxRunners,
-		CreatedAt:      r.CreatedAt.UTC().Format(time.RFC3339),
+		ID:                 r.ID,
+		EventID:            r.EventID,
+		Name:               r.Name,
+		DistanceMeters:     r.DistanceMeters,
+		Discipline:         r.Discipline,
+		MaxRunners:         r.MaxRunners,
+		RegistrationFeeOre: r.RegistrationFeeOre,
+		CreatedAt:          r.CreatedAt.UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal race: %w", err)
@@ -555,13 +558,14 @@ func (s *DynamoStore) CreateRace(ctx context.Context, r models.Race) error {
 
 func (s *DynamoStore) UpdateRace(ctx context.Context, r models.Race) error {
 	item, err := attributevalue.MarshalMap(raceItem{
-		ID:             r.ID,
-		EventID:        r.EventID,
-		Name:           r.Name,
-		DistanceMeters: r.DistanceMeters,
-		Discipline:     r.Discipline,
-		MaxRunners:     r.MaxRunners,
-		CreatedAt:      r.CreatedAt.UTC().Format(time.RFC3339),
+		ID:                 r.ID,
+		EventID:            r.EventID,
+		Name:               r.Name,
+		DistanceMeters:     r.DistanceMeters,
+		Discipline:         r.Discipline,
+		MaxRunners:         r.MaxRunners,
+		RegistrationFeeOre: r.RegistrationFeeOre,
+		CreatedAt:          r.CreatedAt.UTC().Format(time.RFC3339),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal race: %w", err)
@@ -605,17 +609,18 @@ func (s *DynamoStore) DeleteRace(ctx context.Context, id string) error {
 // ─── Registrations ────────────────────────────────────────────────────
 
 type registrationItem struct {
-	RaceID        string                  `dynamodbav:"raceId"`
-	RunnerID      string                  `dynamodbav:"runnerId"`
-	ID            string                  `dynamodbav:"id"`
-	Status        string                  `dynamodbav:"status"`
-	Bib           string                  `dynamodbav:"bib,omitempty"`
-	Category      *registrationCategory   `dynamodbav:"category,omitempty"`
-	FinishSeconds *int                    `dynamodbav:"finishSeconds,omitempty"`
-	Splits        []registrationSplitItem `dynamodbav:"splits,omitempty"`
-	Conditions    string                  `dynamodbav:"conditions,omitempty"`
-	Notes         string                  `dynamodbav:"notes,omitempty"`
-	CreatedAt     string                  `dynamodbav:"createdAt"`
+	RaceID            string                  `dynamodbav:"raceId"`
+	RunnerID          string                  `dynamodbav:"runnerId"`
+	ID                string                  `dynamodbav:"id"`
+	Status            string                  `dynamodbav:"status"`
+	Bib               string                  `dynamodbav:"bib,omitempty"`
+	Category          *registrationCategory   `dynamodbav:"category,omitempty"`
+	FinishSeconds     *int                    `dynamodbav:"finishSeconds,omitempty"`
+	Splits            []registrationSplitItem `dynamodbav:"splits,omitempty"`
+	Conditions        string                  `dynamodbav:"conditions,omitempty"`
+	Notes             string                  `dynamodbav:"notes,omitempty"`
+	PaymentReceivedAt string                  `dynamodbav:"paymentReceivedAt,omitempty"`
+	CreatedAt         string                  `dynamodbav:"createdAt"`
 }
 
 type registrationCategory struct {
@@ -653,6 +658,11 @@ func registrationFromItem(item registrationItem) models.Registration {
 			reg.Splits[i] = models.Split{Km: s.Km, TimeSeconds: s.TimeSeconds}
 		}
 	}
+	if item.PaymentReceivedAt != "" {
+		if t, err := time.Parse(time.RFC3339, item.PaymentReceivedAt); err == nil {
+			reg.PaymentReceivedAt = &t
+		}
+	}
 	return reg
 }
 
@@ -686,6 +696,9 @@ func (s *DynamoStore) CreateRegistration(ctx context.Context, reg models.Registr
 		for i, sp := range reg.Splits {
 			item.Splits[i] = registrationSplitItem{Km: sp.Km, TimeSeconds: sp.TimeSeconds}
 		}
+	}
+	if reg.PaymentReceivedAt != nil {
+		item.PaymentReceivedAt = reg.PaymentReceivedAt.UTC().Format(time.RFC3339)
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
@@ -889,6 +902,14 @@ func (s *DynamoStore) UpdateRegistration(ctx context.Context, u RegistrationUpda
 			sets = append(sets, n+" = "+v)
 			values[v] = &dynamodbtypes.AttributeValueMemberS{Value: *u.Notes}
 		}
+	}
+	if u.ClearPayment {
+		n, _ := placeholder("paymentReceivedAt")
+		removes = append(removes, n)
+	} else if u.PaymentReceivedAt != nil {
+		n, v := placeholder("paymentReceivedAt")
+		sets = append(sets, n+" = "+v)
+		values[v] = &dynamodbtypes.AttributeValueMemberS{Value: u.PaymentReceivedAt.UTC().Format(time.RFC3339)}
 	}
 
 	if len(sets) == 0 && len(removes) == 0 {

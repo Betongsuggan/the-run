@@ -24,7 +24,9 @@
 		category: Registration['category'];
 		status: RegistrationStatus;
 		finishStr: string;
-		original: { bib: string; status: RegistrationStatus; finishStr: string };
+		paid: boolean;
+		paymentReceivedAt: string | null;
+		original: { bib: string; status: RegistrationStatus; finishStr: string; paid: boolean };
 		rowError: string | null;
 	};
 
@@ -39,6 +41,7 @@
 	function toRow(reg: Registration): Row {
 		const finishStr = reg.finishSeconds !== undefined ? formatTime(reg.finishSeconds) : '';
 		const bib = reg.bib ?? '';
+		const paid = !!reg.paymentReceivedAt;
 		return {
 			id: reg.id,
 			runnerId: reg.runnerId,
@@ -46,7 +49,9 @@
 			category: reg.category,
 			status: reg.status,
 			finishStr,
-			original: { bib, status: reg.status, finishStr },
+			paid,
+			paymentReceivedAt: reg.paymentReceivedAt ?? null,
+			original: { bib, status: reg.status, finishStr, paid },
 			rowError: null
 		};
 	}
@@ -86,11 +91,16 @@
 		return (
 			row.bib !== row.original.bib ||
 			row.status !== row.original.status ||
-			row.finishStr.trim() !== row.original.finishStr.trim()
+			row.finishStr.trim() !== row.original.finishStr.trim() ||
+			row.paid !== row.original.paid
 		);
 	}
 
 	const dirtyCount = $derived(rows.filter(isDirty).length);
+
+	const race = $derived(dataStore.races.find((r) => r.id === raceId));
+	const hasFee = $derived((race?.registrationFeeOre ?? 0) > 0);
+	const paidCount = $derived(rows.filter((r) => r.paid).length);
 
 	async function onRemove(row: Row) {
 		if (!confirm(i18n.m.admin.races.confirmRemoveRegistration)) return;
@@ -122,13 +132,17 @@
 			} else {
 				finishSeconds = null;
 			}
-			updates.push({
+			const update: RegistrationUpdate = {
 				raceId,
 				runnerId: row.runnerId,
 				status: row.status,
 				finishSeconds,
 				bib: row.bib
-			});
+			};
+			if (row.paid !== row.original.paid) {
+				update.paymentReceivedAt = row.paid ? 'now' : '';
+			}
+			updates.push(update);
 		}
 
 		if (anyRowError) {
@@ -158,9 +172,16 @@
 {:else}
 	<div class="space-y-3">
 		<div class="flex items-center justify-between gap-3">
-			<h2 class="text-sm uppercase tracking-wide opacity-70">
-				{i18n.m.admin.races.registeredHeading(rows.length)}
-			</h2>
+			<div class="space-y-0.5">
+				<h2 class="text-sm uppercase tracking-wide opacity-70">
+					{i18n.m.admin.races.registeredHeading(rows.length)}
+				</h2>
+				{#if hasFee}
+					<p class="text-xs opacity-70">
+						{i18n.m.admin.races.paidSummary({ paid: paidCount, total: rows.length })}
+					</p>
+				{/if}
+			</div>
 			<button
 				type="button"
 				class="btn preset-filled-primary-500 inline-flex items-center gap-2 disabled:opacity-50"
@@ -186,6 +207,9 @@
 					<thead>
 						<tr>
 							<th>{i18n.m.admin.races.columnRunner}</th>
+							{#if hasFee}
+								<th class="w-20">{i18n.m.admin.races.columnPaid}</th>
+							{/if}
 							<th class="w-28">{i18n.m.admin.races.columnBib}</th>
 							<th class="w-32">{i18n.m.admin.races.columnCategory}</th>
 							<th class="w-36">{i18n.m.admin.races.columnStatus}</th>
@@ -198,6 +222,16 @@
 							{@const dirty = isDirty(row)}
 							<tr class={dirty ? 'preset-tonal-warning/30' : ''}>
 								<td class="font-medium">{runnerName(row.runnerId)}</td>
+								{#if hasFee}
+									<td class="text-center">
+										<input
+											type="checkbox"
+											class="checkbox"
+											bind:checked={rows[idx].paid}
+											aria-label={i18n.m.admin.races.columnPaid}
+										/>
+									</td>
+								{/if}
 								<td>
 									<input type="text" bind:value={rows[idx].bib} class="input input-sm" />
 								</td>

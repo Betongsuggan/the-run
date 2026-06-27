@@ -41,5 +41,17 @@ type Registration struct {
 	Splits        []Split `gdpr:"behavioural;purposes=public-results"`
 	Conditions    string
 	Notes         string
-	CreatedAt     time.Time
+	// PaymentReceivedAt is set when an admin (or, in a future iteration, a
+	// Swish webhook) confirms the registration fee has been paid. Nil means
+	// unpaid. For races with Race.RegistrationFeeOre == 0 this stays nil —
+	// IsCleared treats the runner as paid implicitly.
+	PaymentReceivedAt *time.Time
+	CreatedAt         time.Time
+}
+
+// IsCleared reports whether the runner has satisfied the payment requirement
+// for the given race. Free races are always cleared; paid races require
+// PaymentReceivedAt to be set.
+func (r Registration) IsCleared(race Race) bool {
+	return race.RegistrationFeeOre == 0 || r.PaymentReceivedAt != nil
 }

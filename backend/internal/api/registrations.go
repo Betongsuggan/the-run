@@ -34,13 +34,15 @@ type guardianConsentVars struct {
 // registrationConfirmationVars carries the race-detail fields the
 // registration-confirmation template substitutes.
 type registrationConfirmationVars struct {
-	RunnerName    string
-	EventName     string
-	EventDate     string
-	EventLocation string
-	RaceName      string
-	RaceDistance  string
-	ManageDataUrl string
+	RunnerName              string
+	EventName               string
+	EventDate               string
+	EventLocation           string
+	RaceName                string
+	RaceDistance            string
+	ManageDataUrl           string
+	RegistrationFeeOre      int
+	RegistrationFeeFormatted string
 }
 
 // formatRaceDistance renders DistanceMeters as a short human string
@@ -59,6 +61,21 @@ func formatRaceDistance(meters int) string {
 	return fmt.Sprintf("%.1f km", float64(meters)/1000.0)
 }
 
+// formatRegistrationFee renders öre as a human-readable SEK string.
+// Whole krona ("250 kr") when there's no öre component; otherwise the
+// trailing öre is shown as ",XX". Returns the empty string for zero.
+func formatRegistrationFee(ore int) string {
+	if ore <= 0 {
+		return ""
+	}
+	kr := ore / 100
+	rem := ore % 100
+	if rem == 0 {
+		return fmt.Sprintf("%d kr", kr)
+	}
+	return fmt.Sprintf("%d,%02d kr", kr, rem)
+}
+
 // sendRegistrationConfirmationEmail builds the variables and dispatches the
 // registration-confirmation email via the renderer. Locale comes from the
 // registering account so a parent who's set en in /my-data gets the English
@@ -73,13 +90,15 @@ func sendRegistrationConfirmationEmail(ctx context.Context, renderer *email.Rend
 		To:     account.Email,
 		Locale: account.Locale,
 		Vars: registrationConfirmationVars{
-			RunnerName:    runner.Name,
-			EventName:     event.Name,
-			EventDate:     event.Date,
-			EventLocation: event.Location,
-			RaceName:      race.Name,
-			RaceDistance:  formatRaceDistance(race.DistanceMeters),
-			ManageDataUrl: base + "/my-data",
+			RunnerName:               runner.Name,
+			EventName:                event.Name,
+			EventDate:                event.Date,
+			EventLocation:            event.Location,
+			RaceName:                 race.Name,
+			RaceDistance:             formatRaceDistance(race.DistanceMeters),
+			ManageDataUrl:            base + "/my-data",
+			RegistrationFeeOre:       race.RegistrationFeeOre,
+			RegistrationFeeFormatted: formatRegistrationFee(race.RegistrationFeeOre),
 		},
 	})
 }

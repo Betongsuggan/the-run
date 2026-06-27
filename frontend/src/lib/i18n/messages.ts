@@ -143,6 +143,8 @@ const sv = {
 		genderLabel: 'Kön',
 		raceLabel: 'Lopp',
 		racePlaceholder: 'Välj ett kommande lopp',
+		feeLine: ({ amount }: { amount: string }) =>
+			`Anmälningsavgift: ${amount}. Anmälan blir aktiv när betalningen har bekräftats — instruktioner kommer i bekräftelsemejlet.`,
 		consentPublicResultsLabel: 'Visa mitt resultat publikt',
 		consentPublicResultsHelp:
 			'Ditt namn, åldersklass och sluttid visas i de publika resultatlistorna. Avmarkera om du vill stå som "Anonym" — startnummer och tid finns kvar i listan oavsett. Du kan ändra valet senare på /my-data.',
@@ -439,6 +441,8 @@ const sv = {
 			distanceLabel: 'Distans (meter)',
 			disciplineLabel: 'Disciplin',
 			maxRunnersLabel: 'Max antal löpare (0 = ingen gräns)',
+			registrationFeeLabel: 'Anmälningsavgift (0 = gratis)',
+			registrationFeeSuffix: 'kr',
 			columnName: 'Namn',
 			columnYear: 'År',
 			columnDate: 'Datum',
@@ -454,7 +458,11 @@ const sv = {
 			bibLabel: 'Startnummer',
 			noRunnersAvailable: 'Alla löpare är redan anmälda till denna klass.',
 			registeredHeading: (n: number) => (n === 1 ? '1 anmäld löpare' : `${n} anmälda löpare`),
+			feeBadge: ({ amount }: { amount: string }) => `Avgift ${amount}`,
+			paidSummary: ({ paid, total }: { paid: number; total: number }) =>
+				`${paid} av ${total} har betalat`,
 			columnRunner: 'Löpare',
+			columnPaid: 'Betald',
 			columnBib: 'Startnr',
 			columnCategory: 'Kategori',
 			columnStatus: 'Status',
@@ -754,6 +762,8 @@ const en: Catalog = {
 		genderLabel: 'Gender',
 		raceLabel: 'Race',
 		racePlaceholder: 'Pick an upcoming race',
+		feeLine: ({ amount }: { amount: string }) =>
+			`Registration fee: ${amount}. Your spot is confirmed once we tick off your payment — instructions arrive in the confirmation email.`,
 		consentPublicResultsLabel: 'Show my result publicly',
 		consentPublicResultsHelp:
 			'Your name, age class and finish time appear in the public results listings. Uncheck to show as "Anonym" — bib and time stay in the list regardless. You can change this later via /my-data.',
@@ -1049,6 +1059,8 @@ const en: Catalog = {
 			distanceLabel: 'Distance (meters)',
 			disciplineLabel: 'Discipline',
 			maxRunnersLabel: 'Max runners (0 = unlimited)',
+			registrationFeeLabel: 'Registration fee (0 = free)',
+			registrationFeeSuffix: 'SEK',
 			columnName: 'Name',
 			columnYear: 'Year',
 			columnDate: 'Date',
@@ -1065,7 +1077,11 @@ const en: Catalog = {
 			noRunnersAvailable: 'Every runner is already registered for this race.',
 			registeredHeading: (n: number) =>
 				n === 1 ? '1 registered runner' : `${n} registered runners`,
+			feeBadge: ({ amount }: { amount: string }) => `Fee ${amount}`,
+			paidSummary: ({ paid, total }: { paid: number; total: number }) =>
+				`${paid} of ${total} paid`,
 			columnRunner: 'Runner',
+			columnPaid: 'Paid',
 			columnBib: 'Bib',
 			columnCategory: 'Category',
 			columnStatus: 'Status',

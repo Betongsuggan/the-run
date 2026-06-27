@@ -6,7 +6,7 @@
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { dataStore } from '$lib/store/data.svelte';
 	import { adminCreateRegistration } from '$lib/admin/api';
-	import { formatDate, formatDistance, formatRaceName } from '$lib/format';
+	import { formatDate, formatDistance, formatRaceName, formatFee } from '$lib/format';
 	import PageHeader from '$lib/admin/components/PageHeader.svelte';
 	import RegistrationsResultsTable from '$lib/admin/components/RegistrationsResultsTable.svelte';
 
@@ -71,7 +71,8 @@
 		<p class="text-sm opacity-80 -mt-2">
 			{event?.name} · {event ? formatDate(event.date) : ''} · {formatRaceName(race)} · {formatDistance(
 				race.distanceMeters
-			)}
+			)}{#if (race.registrationFeeOre ?? 0) > 0}
+				· {i18n.m.admin.races.feeBadge({ amount: formatFee(race.registrationFeeOre ?? 0) })}{/if}
 		</p>
 
 		<section class="card preset-filled-surface-50-950 border border-surface-200-800 p-4 space-y-3">

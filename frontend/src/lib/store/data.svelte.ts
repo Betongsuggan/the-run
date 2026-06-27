@@ -28,6 +28,9 @@ export type RegistrationUpdate = {
 	splits?: Registration['splits'];
 	conditions?: string;
 	notes?: string;
+	// "" clears, an RFC3339 timestamp or the "now" sentinel sets, undefined
+	// leaves the field untouched.
+	paymentReceivedAt?: string;
 };
 
 async function fetchAll(): Promise<void> {

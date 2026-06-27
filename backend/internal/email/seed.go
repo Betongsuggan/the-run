@@ -39,6 +39,9 @@ var templateSeeds = map[models.EmailTemplateSlug]SeedTemplate{
 			"  • Klass: {{.RaceName}} ({{.RaceDistance}})\n" +
 			"  • Datum: {{.EventDate}}\n" +
 			"  • Plats: {{.EventLocation}}\n\n" +
+			"{{if gt .RegistrationFeeOre 0}}Anmälningsavgift: {{.RegistrationFeeFormatted}}\n\n" +
+			"Din anmälan är preliminär tills vi har bekräftat din betalning. Betala via Swish eller bankgiro enligt instruktionerna på vår hemsida — så snart vi prickat av betalningen är du klar för start.\n\n" +
+			"{{end}}" +
 			"Vi mejlar dig igen närmare loppet med startnummer och praktisk information.\n\n" +
 			"Behöver du uppdatera dina uppgifter eller ångra anmälan? Du hanterar allt själv på:\n\n" +
 			"{{.ManageDataUrl}}\n\n" +
@@ -51,11 +54,14 @@ var templateSeeds = map[models.EmailTemplateSlug]SeedTemplate{
 			"  • Race: {{.RaceName}} ({{.RaceDistance}})\n" +
 			"  • Date: {{.EventDate}}\n" +
 			"  • Location: {{.EventLocation}}\n\n" +
+			"{{if gt .RegistrationFeeOre 0}}Registration fee: {{.RegistrationFeeFormatted}}\n\n" +
+			"Your registration is provisional until we've confirmed your payment. Pay via Swish or bank transfer following the instructions on our website — as soon as we tick off your payment you're good to go.\n\n" +
+			"{{end}}" +
 			"We'll email you again closer to race day with your bib number and practical info.\n\n" +
 			"Need to update your details or cancel? You can manage everything yourself at:\n\n" +
 			"{{.ManageDataUrl}}\n\n" +
 			"See you at the start line!\n",
-		AvailableVariables: []string{"RunnerName", "EventName", "EventDate", "EventLocation", "RaceName", "RaceDistance", "ManageDataUrl"},
+		AvailableVariables: []string{"RunnerName", "EventName", "EventDate", "EventLocation", "RaceName", "RaceDistance", "ManageDataUrl", "RegistrationFeeOre", "RegistrationFeeFormatted"},
 	},
 	models.EmailTemplateSlugGuardianConsent: {
 		Slug:        models.EmailTemplateSlugGuardianConsent,

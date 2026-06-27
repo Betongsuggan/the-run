@@ -25,6 +25,8 @@
 	let distance = $state(5000);
 	let discipline = $state<Discipline>('run');
 	let maxRunners = $state(0);
+	// registrationFee is in whole SEK in the form; converted to öre on submit.
+	let registrationFee = $state(0);
 	let saving = $state(false);
 	let errorMsg = $state<string | null>(null);
 
@@ -34,6 +36,7 @@
 		distance = 5000;
 		discipline = 'run';
 		maxRunners = 0;
+		registrationFee = 0;
 		errorMsg = null;
 	}
 
@@ -43,6 +46,7 @@
 		distance = race.distanceMeters;
 		discipline = race.discipline;
 		maxRunners = race.maxRunners ?? 0;
+		registrationFee = Math.round((race.registrationFeeOre ?? 0) / 100);
 		errorMsg = null;
 	}
 
@@ -61,7 +65,8 @@
 				name: raceName.trim(),
 				distanceMeters: Number(distance),
 				discipline,
-				maxRunners: Math.max(0, Math.floor(Number(maxRunners) || 0))
+				maxRunners: Math.max(0, Math.floor(Number(maxRunners) || 0)),
+				registrationFeeOre: Math.max(0, Math.floor(Number(registrationFee) || 0)) * 100
 			};
 			if (editing.mode === 'create') {
 				await adminCreateRace(payload);
@@ -194,10 +199,25 @@
 				</select>
 			</label>
 		</div>
-		<label class="block space-y-1">
-			<span class="text-sm font-medium">{i18n.m.admin.events.maxRunnersLabel}</span>
-			<input type="number" min="0" step="1" bind:value={maxRunners} class="input" />
-		</label>
+		<div class="grid grid-cols-2 gap-3">
+			<label class="block space-y-1">
+				<span class="text-sm font-medium">{i18n.m.admin.events.maxRunnersLabel}</span>
+				<input type="number" min="0" step="1" bind:value={maxRunners} class="input" />
+			</label>
+			<label class="block space-y-1">
+				<span class="text-sm font-medium">{i18n.m.admin.events.registrationFeeLabel}</span>
+				<div class="flex items-center gap-2">
+					<input
+						type="number"
+						min="0"
+						step="1"
+						bind:value={registrationFee}
+						class="input"
+					/>
+					<span class="text-sm opacity-70">{i18n.m.admin.events.registrationFeeSuffix}</span>
+				</div>
+			</label>
+		</div>
 
 		{#if errorMsg}
 			<p class="text-sm text-error-600 dark:text-error-300">{errorMsg}</p>

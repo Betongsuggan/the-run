@@ -17,22 +17,24 @@ import (
 )
 
 type RaceDTO struct {
-	ID             string `json:"id"`
-	EventID        string `json:"eventId"`
-	Name           string `json:"name"`
-	DistanceMeters int    `json:"distanceMeters"`
-	Discipline     string `json:"discipline"`
-	MaxRunners     int    `json:"maxRunners"`
+	ID                 string `json:"id"`
+	EventID            string `json:"eventId"`
+	Name               string `json:"name"`
+	DistanceMeters     int    `json:"distanceMeters"`
+	Discipline         string `json:"discipline"`
+	MaxRunners         int    `json:"maxRunners"`
+	RegistrationFeeOre int    `json:"registrationFeeOre"`
 }
 
 func raceToDTO(r models.Race) RaceDTO {
 	return RaceDTO{
-		ID:             r.ID,
-		EventID:        r.EventID,
-		Name:           r.Name,
-		DistanceMeters: r.DistanceMeters,
-		Discipline:     r.Discipline,
-		MaxRunners:     r.MaxRunners,
+		ID:                 r.ID,
+		EventID:            r.EventID,
+		Name:               r.Name,
+		DistanceMeters:     r.DistanceMeters,
+		Discipline:         r.Discipline,
+		MaxRunners:         r.MaxRunners,
+		RegistrationFeeOre: r.RegistrationFeeOre,
 	}
 }
 
@@ -56,22 +58,24 @@ type raceOutput struct {
 
 type createRaceInput struct {
 	Body struct {
-		EventID        string `json:"eventId" minLength:"1"`
-		Name           string `json:"name" minLength:"1" maxLength:"200"`
-		DistanceMeters int    `json:"distanceMeters" minimum:"1"`
-		Discipline     string `json:"discipline" enum:"run,walk,kids"`
-		MaxRunners     int    `json:"maxRunners,omitempty" minimum:"0"`
+		EventID            string `json:"eventId" minLength:"1"`
+		Name               string `json:"name" minLength:"1" maxLength:"200"`
+		DistanceMeters     int    `json:"distanceMeters" minimum:"1"`
+		Discipline         string `json:"discipline" enum:"run,walk,kids"`
+		MaxRunners         int    `json:"maxRunners,omitempty" minimum:"0"`
+		RegistrationFeeOre int    `json:"registrationFeeOre,omitempty" minimum:"0"`
 	}
 }
 
 type updateRaceInput struct {
 	ID   string `path:"id"`
 	Body struct {
-		EventID        string `json:"eventId" minLength:"1"`
-		Name           string `json:"name" minLength:"1" maxLength:"200"`
-		DistanceMeters int    `json:"distanceMeters" minimum:"1"`
-		Discipline     string `json:"discipline" enum:"run,walk,kids"`
-		MaxRunners     int    `json:"maxRunners,omitempty" minimum:"0"`
+		EventID            string `json:"eventId" minLength:"1"`
+		Name               string `json:"name" minLength:"1" maxLength:"200"`
+		DistanceMeters     int    `json:"distanceMeters" minimum:"1"`
+		Discipline         string `json:"discipline" enum:"run,walk,kids"`
+		MaxRunners         int    `json:"maxRunners,omitempty" minimum:"0"`
+		RegistrationFeeOre int    `json:"registrationFeeOre,omitempty" minimum:"0"`
 	}
 }
 
@@ -149,13 +153,14 @@ func registerRaces(api huma.API, s store.Store, authCfg auth.Config) {
 			return nil, fmt.Errorf("lookup event: %w", err)
 		}
 		r := models.Race{
-			ID:             uuid.NewString(),
-			EventID:        in.Body.EventID,
-			Name:           strings.TrimSpace(in.Body.Name),
-			DistanceMeters: in.Body.DistanceMeters,
-			Discipline:     in.Body.Discipline,
-			MaxRunners:     in.Body.MaxRunners,
-			CreatedAt:      time.Now().UTC(),
+			ID:                 uuid.NewString(),
+			EventID:            in.Body.EventID,
+			Name:               strings.TrimSpace(in.Body.Name),
+			DistanceMeters:     in.Body.DistanceMeters,
+			Discipline:         in.Body.Discipline,
+			MaxRunners:         in.Body.MaxRunners,
+			RegistrationFeeOre: in.Body.RegistrationFeeOre,
+			CreatedAt:          time.Now().UTC(),
 		}
 		if err := s.CreateRace(ctx, r); err != nil {
 			return nil, fmt.Errorf("create race: %w", err)
@@ -187,13 +192,14 @@ func registerRaces(api huma.API, s store.Store, authCfg auth.Config) {
 			}
 		}
 		updated := models.Race{
-			ID:             existing.ID,
-			EventID:        in.Body.EventID,
-			Name:           strings.TrimSpace(in.Body.Name),
-			DistanceMeters: in.Body.DistanceMeters,
-			Discipline:     in.Body.Discipline,
-			MaxRunners:     in.Body.MaxRunners,
-			CreatedAt:      existing.CreatedAt,
+			ID:                 existing.ID,
+			EventID:            in.Body.EventID,
+			Name:               strings.TrimSpace(in.Body.Name),
+			DistanceMeters:     in.Body.DistanceMeters,
+			Discipline:         in.Body.Discipline,
+			MaxRunners:         in.Body.MaxRunners,
+			RegistrationFeeOre: in.Body.RegistrationFeeOre,
+			CreatedAt:          existing.CreatedAt,
 		}
 		if err := s.UpdateRace(ctx, updated); err != nil {
 			if errors.Is(err, store.ErrNotFound) {

@@ -27,6 +27,8 @@ export type Race = {
 	discipline: Discipline;
 	// 0 (or omitted) means uncapped.
 	maxRunners?: number;
+	// Registration fee in öre (1/100 SEK). 0 (or omitted) = free.
+	registrationFeeOre?: number;
 };
 
 export type Category = {
@@ -70,6 +72,10 @@ export type Registration = {
 	splits?: Split[];
 	conditions?: string;
 	notes?: string;
+	// RFC3339 timestamp when an admin (or future Swish webhook) confirmed
+	// payment. Missing/undefined = unpaid. Free races leave this undefined
+	// regardless of registration state — see Race.registrationFeeOre.
+	paymentReceivedAt?: string;
 };
 
 export type ResultExpanded = Result & {
