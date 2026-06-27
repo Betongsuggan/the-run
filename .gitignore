@@ -8,6 +8,14 @@ result-*
 backend/dist/
 backend/*.zip
 backend/bootstrap
+# Bare binaries left by `go build ./cmd/<name>` (recipes use `go run` so
+# these only land if you build directly from `backend/`).
+backend/admin
+backend/api
+backend/gen-gdpr
+backend/retention
+backend/seed
+backend/seed-policy
 
 # Node / SvelteKit
 node_modules/

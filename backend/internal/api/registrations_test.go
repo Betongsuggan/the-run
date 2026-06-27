@@ -39,6 +39,7 @@ func newFakeStore() *fakeStore {
 		magicTokens:     map[string]models.MagicToken{},
 		policy: &models.Policy{
 			ID:       "policy-test-1",
+			Kind:     models.PolicyKindPrivacy,
 			Slug:     "2026-08-01",
 			Status:   models.PolicyStatusPublished,
 			Revision: 1,
@@ -51,7 +52,7 @@ func newFakeStore() *fakeStore {
 	return f
 }
 
-func (f *fakeStore) GetPublishedPolicy(_ context.Context) (*models.Policy, error) {
+func (f *fakeStore) GetPublishedPolicy(_ context.Context, _ models.PolicyKind) (*models.Policy, error) {
 	if f.policy == nil {
 		return nil, store.ErrNoPublishedPolicy
 	}

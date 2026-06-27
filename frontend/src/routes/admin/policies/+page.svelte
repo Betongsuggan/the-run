@@ -34,6 +34,7 @@
 
 	// Form state — reused by both Create and Edit flows.
 	let slug = $state('');
+	let policyKind = $state<'privacy'>('privacy');
 	let effectiveFrom = $state('');
 	let bodySv = $state('');
 	let bodyEn = $state('');
@@ -61,6 +62,7 @@
 	function openCreate() {
 		editing = { kind: 'create' };
 		slug = todayDateSlug();
+		policyKind = 'privacy';
 		effectiveFrom = new Date().toISOString();
 		bodySv = '';
 		bodyEn = '';
@@ -72,6 +74,7 @@
 	function openEdit(policy: Policy) {
 		editing = { kind: 'edit', policy };
 		slug = policy.slug;
+		policyKind = policy.kind;
 		effectiveFrom = policy.effectiveFrom;
 		bodySv = policy.bodySv;
 		bodyEn = policy.bodyEn;
@@ -101,6 +104,7 @@
 		try {
 			if (editing.kind === 'create') {
 				await adminCreatePolicy({
+					kind: policyKind,
 					slug: slug.trim(),
 					effectiveFrom,
 					bodySv,
@@ -215,6 +219,7 @@
 							<table class="table">
 								<thead>
 									<tr>
+										<th>{i18n.m.admin.policies.columnKind}</th>
 										<th>{i18n.m.admin.policies.columnSlug}</th>
 										<th>{i18n.m.admin.policies.columnStatus}</th>
 										<th>{i18n.m.admin.policies.columnRevision}</th>
@@ -226,6 +231,7 @@
 								<tbody>
 									{#each group.list as policy (policy.id)}
 										<tr>
+											<td class="text-sm">{i18n.m.policies.kindLabel[policy.kind] ?? policy.kind}</td>
 											<td class="font-mono text-sm">{policy.slug}</td>
 											<td>
 												<span class={statusBadgeClass(policy.status)}
@@ -312,6 +318,12 @@
 >
 	<form class="space-y-4" onsubmit={onSave}>
 		{#if editing?.kind === 'create'}
+			<label class="block space-y-1">
+				<span class="text-sm font-medium">{i18n.m.admin.policies.kindLabel}</span>
+				<select required class="select" bind:value={policyKind}>
+					<option value="privacy">{i18n.m.policies.kindLabel.privacy}</option>
+				</select>
+			</label>
 			<label class="block space-y-1">
 				<span class="text-sm font-medium">{i18n.m.admin.policies.slugLabel}</span>
 				<input

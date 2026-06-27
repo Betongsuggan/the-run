@@ -20,8 +20,9 @@ marked.setOptions({
 });
 
 // Allowed tags + attributes. Headings, paragraphs, lists, inline emphasis,
-// links, and blockquotes are enough for a privacy notice; anything richer
-// belongs in a real CMS.
+// links, blockquotes and GFM tables — enough for a privacy notice (the
+// retention windows + lawful-basis matrix read naturally as tables) without
+// opening the door to arbitrary HTML. Anything richer belongs in a real CMS.
 const SANITIZE_OPTS = {
 	ALLOWED_TAGS: [
 		'h1',
@@ -39,9 +40,15 @@ const SANITIZE_OPTS = {
 		'li',
 		'a',
 		'blockquote',
-		'hr'
+		'hr',
+		'table',
+		'thead',
+		'tbody',
+		'tr',
+		'th',
+		'td'
 	],
-	ALLOWED_ATTR: ['href', 'title'],
+	ALLOWED_ATTR: ['href', 'title', 'align'],
 	ALLOW_DATA_ATTR: false
 };
 

@@ -75,6 +75,10 @@ func registerAdminPolicies(api huma.API, s store.Store, authCfg auth.Config, rec
 		if slug == "" {
 			return nil, huma.Error422UnprocessableEntity("slug is required")
 		}
+		kind := models.PolicyKind(strings.TrimSpace(in.Body.Kind))
+		if kind == "" {
+			kind = models.DefaultPolicyKind
+		}
 		effectiveFrom, err := time.Parse(time.RFC3339, in.Body.EffectiveFrom)
 		if err != nil {
 			return nil, huma.Error422UnprocessableEntity("effectiveFrom must be RFC3339")
@@ -83,6 +87,7 @@ func registerAdminPolicies(api huma.API, s store.Store, authCfg auth.Config, rec
 		editor := auth.Subject(ctx)
 		p := models.Policy{
 			ID:            uuid.NewString(),
+			Kind:          kind,
 			Slug:          slug,
 			Status:        models.PolicyStatusDraft,
 			Revision:      1,
@@ -95,11 +100,11 @@ func registerAdminPolicies(api huma.API, s store.Store, authCfg auth.Config, rec
 		}
 		if err := s.CreatePolicyDraft(ctx, p); err != nil {
 			if errors.Is(err, store.ErrAlreadyExists) {
-				return nil, huma.Error409Conflict("a policy with that slug already exists")
+				return nil, huma.Error409Conflict("a policy with that slug already exists for this kind")
 			}
 			return nil, fmt.Errorf("create policy draft: %w", err)
 		}
-		auditPolicyAction(ctx, p.ID, "admin.policy.created", "Admin created policy draft", fmt.Sprintf("slug=%s revision=1", p.Slug))
+		auditPolicyAction(ctx, p.ID, "admin.policy.created", "Admin created policy draft", fmt.Sprintf("kind=%s slug=%s revision=1", p.Kind, p.Slug))
 		return &policyOutput{Body: policyToDTO(p)}, nil
 	})
 
@@ -182,7 +187,7 @@ func registerAdminPolicies(api huma.API, s store.Store, authCfg auth.Config, rec
 			return nil, huma.Error404NotFound("policy not found")
 		}
 
-		previouslyPublished, err := s.GetPublishedPolicy(ctx)
+		previouslyPublished, err := s.GetPublishedPolicy(ctx, existing.Kind)
 		if err != nil && !errors.Is(err, store.ErrNoPublishedPolicy) {
 			return nil, fmt.Errorf("lookup current published: %w", err)
 		}

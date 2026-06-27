@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/BirgerRydback/the-run/backend/internal/email"
+	"github.com/BirgerRydback/the-run/backend/internal/gdpr"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/ratelimit"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
@@ -33,10 +34,7 @@ const (
 	registerRateLimitWindow = 60 * time.Second
 )
 
-// guardianTokenTTL is how long a parental-consent magic link stays valid.
-// Chosen so a guardian who registers a kid on Friday evening has the whole
-// next weekend to click; matches the "7 days" in the GDPR plan A0.4.
-const guardianTokenTTL = 7 * 24 * time.Hour
+const guardianTokenTTL = gdpr.GuardianTokenTTL
 
 // underAgeThreshold is the age below which we require an explicit
 // guardian-consent magic link (GDPR A0.4). 13 is the Swedish digital-consent
@@ -124,7 +122,7 @@ func registerRegistrations(api huma.API, s store.Store, sender email.Sender) {
 		// record needs a policy to bind to — without one we have nothing to
 		// stamp on the marketing/publicResults consent rows. Reject early
 		// so the user doesn't fill the form before learning we're paused.
-		currentPolicy, err := s.GetPublishedPolicy(ctx)
+		currentPolicy, err := s.GetPublishedPolicy(ctx, models.PolicyKindPrivacy)
 		if err != nil {
 			if errors.Is(err, store.ErrNoPublishedPolicy) {
 				log.Printf("registration rejected: no published privacy policy")

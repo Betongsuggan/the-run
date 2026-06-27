@@ -12,11 +12,13 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
-// PolicyDTO is the public projection of a privacy policy — both the
+// PolicyDTO is the public projection of a policy document — both the
 // markdown bodies and the metadata callers need to render a versioned
-// consent UI.
+// consent UI. Kind identifies which user-facing document this is
+// (currently always "privacy"; future ToS / Code of Conduct etc.).
 type PolicyDTO struct {
 	ID            string `json:"id"`
+	Kind          string `json:"kind"`
 	Slug          string `json:"slug"`
 	Status        string `json:"status"`
 	Revision      int    `json:"revision"`
@@ -41,8 +43,13 @@ type PolicyRevisionDTO struct {
 }
 
 func policyToDTO(p models.Policy) PolicyDTO {
+	kind := p.Kind
+	if kind == "" {
+		kind = models.DefaultPolicyKind
+	}
 	dto := PolicyDTO{
 		ID:            p.ID,
+		Kind:          string(kind),
 		Slug:          p.Slug,
 		Status:        string(p.Status),
 		Revision:      p.Revision,
@@ -69,6 +76,10 @@ func policyRevisionToDTO(r models.PolicyRevision) PolicyRevisionDTO {
 	}
 }
 
+type currentPolicyInput struct {
+	Kind string `query:"kind" enum:"privacy" doc:"Which policy kind. Defaults to 'privacy' for back-compat with the original single-kind endpoint."`
+}
+
 type currentPolicyOutput struct {
 	Body PolicyDTO
 }
@@ -82,19 +93,49 @@ type policyRevisionOutput struct {
 	Body PolicyRevisionDTO
 }
 
+type listPoliciesOutput struct {
+	Body struct {
+		Policies []PolicyDTO `json:"policies"`
+	}
+}
+
 func registerPolicies(api huma.API, s store.Store) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-published-policies",
+		Method:      "GET",
+		Path:        "/policies",
+		Summary:     "List every currently-published policy document (one per kind)",
+		Description: "Public hub data. Returns metadata + bodies for each kind that has a published policy. Empty list if nothing is published yet.",
+		Tags:        []string{"policies"},
+	}, func(ctx context.Context, _ *struct{}) (*listPoliciesOutput, error) {
+		policies, err := s.ListPublishedPolicies(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list published policies: %w", err)
+		}
+		out := &listPoliciesOutput{}
+		out.Body.Policies = make([]PolicyDTO, len(policies))
+		for i, p := range policies {
+			out.Body.Policies[i] = policyToDTO(p)
+		}
+		return out, nil
+	})
+
 	huma.Register(api, huma.Operation{
 		OperationID: "get-current-policy",
 		Method:      "GET",
 		Path:        "/policies/current",
-		Summary:     "Get the currently-published privacy policy",
-		Description: "Returns the policy that new consents are stamped against. 503 if none is published yet — registrations are paused until an admin publishes one.",
+		Summary:     "Get the currently-published policy for a kind",
+		Description: "Returns the policy that new consents of the given kind are stamped against. 'kind' defaults to 'privacy' for backward compatibility. 503 if nothing is published for that kind yet.",
 		Tags:        []string{"policies"},
-	}, func(ctx context.Context, _ *struct{}) (*currentPolicyOutput, error) {
-		p, err := s.GetPublishedPolicy(ctx)
+	}, func(ctx context.Context, in *currentPolicyInput) (*currentPolicyOutput, error) {
+		kind := models.PolicyKind(in.Kind)
+		if kind == "" {
+			kind = models.DefaultPolicyKind
+		}
+		p, err := s.GetPublishedPolicy(ctx, kind)
 		if err != nil {
 			if errors.Is(err, store.ErrNoPublishedPolicy) {
-				return nil, huma.Error503ServiceUnavailable("no privacy policy is published")
+				return nil, huma.Error503ServiceUnavailable("no policy is published for that kind")
 			}
 			return nil, fmt.Errorf("get published policy: %w", err)
 		}
@@ -130,6 +171,7 @@ type adminPolicyListOutput struct {
 
 type createPolicyInput struct {
 	Body struct {
+		Kind          string `json:"kind" enum:"privacy" doc:"Policy document kind. Currently only 'privacy' is defined; extend models.PolicyKind + this enum when adding new kinds."`
 		Slug          string `json:"slug" minLength:"1" maxLength:"80"`
 		EffectiveFrom string `json:"effectiveFrom" format:"date-time"`
 		BodySv        string `json:"bodySv" minLength:"1"`

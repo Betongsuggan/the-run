@@ -18,14 +18,22 @@ import (
 // slugSentinelPrefix mirrors emailSentinelPrefix in account.go: a sentinel
 // row in the policies table reserving the slug. Primary policy rows use
 // UUIDs (no prefix); the two namespaces never collide.
+//
+// Slug uniqueness is scoped per kind — `SLUG#<kind>#<slug>` — so two kinds
+// can independently use the same slug (e.g. privacy/2026-06-26 and
+// tos/2026-06-26).
 const slugSentinelPrefix = "SLUG#"
 
-func slugSentinelID(slug string) string {
-	return slugSentinelPrefix + slug
+func slugSentinelID(kind models.PolicyKind, slug string) string {
+	if kind == "" {
+		kind = models.DefaultPolicyKind
+	}
+	return slugSentinelPrefix + string(kind) + "#" + slug
 }
 
 type policyItem struct {
 	ID            string `dynamodbav:"id"`
+	Kind          string `dynamodbav:"kind,omitempty"` // PolicyKind: "privacy" etc.
 	Slug          string `dynamodbav:"slug"`
 	Status        string `dynamodbav:"status"`
 	Revision      int    `dynamodbav:"revision"`
@@ -37,14 +45,16 @@ type policyItem struct {
 	PublishedAt   string `dynamodbav:"publishedAt,omitempty"`
 	PublishedBy   string `dynamodbav:"publishedBy,omitempty"`
 	LastEditedBy  string `dynamodbav:"lastEditedBy,omitempty"`
-	// Discriminator so a Scan can tell primary rows from sentinel rows.
-	Kind string `dynamodbav:"kind"`
+	// Row-type discriminator so a Scan can tell primary rows ("policy") from
+	// sentinel rows ("slug-sentinel"). Distinct from Kind above which is the
+	// policy-document type.
+	RowKind string `dynamodbav:"rowKind"`
 }
 
 type slugSentinelItem struct {
 	ID       string `dynamodbav:"id"`
 	PolicyID string `dynamodbav:"policyId"`
-	Kind     string `dynamodbav:"kind"`
+	RowKind  string `dynamodbav:"rowKind"`
 }
 
 type policyRevisionItem struct {
@@ -62,8 +72,14 @@ func policyFromItem(item policyItem) models.Policy {
 	createdAt, _ := time.Parse(time.RFC3339, item.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, item.UpdatedAt)
 	effectiveFrom, _ := time.Parse(time.RFC3339, item.EffectiveFrom)
+	kind := models.PolicyKind(item.Kind)
+	if kind == "" {
+		// Legacy rows predating the Kind field: assume privacy.
+		kind = models.DefaultPolicyKind
+	}
 	p := models.Policy{
 		ID:            item.ID,
+		Kind:          kind,
 		Slug:          item.Slug,
 		Status:        models.PolicyStatus(item.Status),
 		Revision:      item.Revision,
@@ -85,8 +101,13 @@ func policyFromItem(item policyItem) models.Policy {
 }
 
 func itemFromPolicy(p models.Policy) policyItem {
+	kind := p.Kind
+	if kind == "" {
+		kind = models.DefaultPolicyKind
+	}
 	item := policyItem{
 		ID:            p.ID,
+		Kind:          string(kind),
 		Slug:          p.Slug,
 		Status:        string(p.Status),
 		Revision:      p.Revision,
@@ -97,7 +118,7 @@ func itemFromPolicy(p models.Policy) policyItem {
 		UpdatedAt:     p.UpdatedAt.UTC().Format(time.RFC3339),
 		PublishedBy:   p.PublishedBy,
 		LastEditedBy:  p.LastEditedBy,
-		Kind:          "policy",
+		RowKind:       "policy",
 	}
 	if p.PublishedAt != nil {
 		item.PublishedAt = p.PublishedAt.UTC().Format(time.RFC3339)
@@ -145,6 +166,9 @@ func (s *DynamoStore) CreatePolicyDraft(ctx context.Context, p models.Policy) er
 	if p.BodySv == "" || p.BodyEn == "" {
 		return errors.New("policy bodies required (sv + en)")
 	}
+	if p.Kind == "" {
+		p.Kind = models.DefaultPolicyKind
+	}
 	if p.Status == "" {
 		p.Status = models.PolicyStatusDraft
 	}
@@ -157,9 +181,9 @@ func (s *DynamoStore) CreatePolicyDraft(ctx context.Context, p models.Policy) er
 		return fmt.Errorf("marshal policy: %w", err)
 	}
 	sentinel, err := attributevalue.MarshalMap(slugSentinelItem{
-		ID:       slugSentinelID(p.Slug),
+		ID:       slugSentinelID(p.Kind, p.Slug),
 		PolicyID: p.ID,
-		Kind:     "slug-sentinel",
+		RowKind:  "slug-sentinel",
 	})
 	if err != nil {
 		return fmt.Errorf("marshal slug sentinel: %w", err)
@@ -371,9 +395,10 @@ func (s *DynamoStore) PublishPolicy(ctx context.Context, id, publisherID string,
 	atStr := at.UTC().Format(time.RFC3339)
 	transactItems := []dynamodbtypes.TransactWriteItem{}
 
-	// Archive the currently-published policy (if any). Without this, two
-	// policies could end up in "published" status.
-	current, err := s.GetPublishedPolicy(ctx)
+	// Archive the currently-published policy of the same kind (if any).
+	// Other kinds are untouched — each kind has its own "exactly one
+	// published" invariant.
+	current, err := s.GetPublishedPolicy(ctx, target.Kind)
 	if err != nil && !errors.Is(err, ErrNoPublishedPolicy) {
 		return err
 	}
@@ -506,11 +531,11 @@ func (s *DynamoStore) GetPolicyByID(ctx context.Context, id string) (*models.Pol
 	return &p, nil
 }
 
-func (s *DynamoStore) GetPolicyBySlug(ctx context.Context, slug string) (*models.Policy, error) {
+func (s *DynamoStore) GetPolicyBySlug(ctx context.Context, kind models.PolicyKind, slug string) (*models.Policy, error) {
 	sentOut, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(s.policiesTable),
 		Key: map[string]dynamodbtypes.AttributeValue{
-			"id": &dynamodbtypes.AttributeValueMemberS{Value: slugSentinelID(slug)},
+			"id": &dynamodbtypes.AttributeValueMemberS{Value: slugSentinelID(kind, slug)},
 		},
 	})
 	if err != nil {
@@ -529,11 +554,50 @@ func (s *DynamoStore) GetPolicyBySlug(ctx context.Context, slug string) (*models
 	return s.GetPolicyByID(ctx, sentinel.PolicyID)
 }
 
-// GetPublishedPolicy returns the single policy currently in "published"
-// status. Returns ErrNoPublishedPolicy when there isn't one. Uses the
-// byStatus GSI for an O(1)-ish lookup; if more than one row matches, the
-// schema invariant is broken and the first match wins (best effort).
-func (s *DynamoStore) GetPublishedPolicy(ctx context.Context) (*models.Policy, error) {
+// GetPublishedPolicy returns the policy currently in "published" status for
+// the given kind. Returns ErrNoPublishedPolicy when none is published for that
+// kind. Uses the byStatus GSI then filters by kind; the per-kind invariant of
+// "exactly one published" makes the result deterministic.
+func (s *DynamoStore) GetPublishedPolicy(ctx context.Context, kind models.PolicyKind) (*models.Policy, error) {
+	if kind == "" {
+		kind = models.DefaultPolicyKind
+	}
+	out, err := s.client.Query(ctx, &dynamodb.QueryInput{
+		TableName:              aws.String(s.policiesTable),
+		IndexName:              aws.String(byStatusIndex),
+		KeyConditionExpression: aws.String("#status = :pub"),
+		FilterExpression:       aws.String("#kind = :k OR attribute_not_exists(#kind)"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+			"#kind":   "kind",
+		},
+		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
+			":pub": &dynamodbtypes.AttributeValueMemberS{Value: string(models.PolicyStatusPublished)},
+			":k":   &dynamodbtypes.AttributeValueMemberS{Value: string(kind)},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query published policy: %w", err)
+	}
+	for _, raw := range out.Items {
+		var item policyItem
+		if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
+			return nil, fmt.Errorf("unmarshal policy: %w", err)
+		}
+		p := policyFromItem(item)
+		// Belt-and-braces: the FilterExpression also accepts legacy rows
+		// without a kind attribute (which we treat as privacy); recheck the
+		// resolved Kind matches what was asked for.
+		if p.Kind == kind {
+			return &p, nil
+		}
+	}
+	return nil, ErrNoPublishedPolicy
+}
+
+// ListPublishedPolicies returns every currently-published policy, one per
+// kind. Used by the public /policies hub. Sorted by Kind for stable rendering.
+func (s *DynamoStore) ListPublishedPolicies(ctx context.Context) ([]models.Policy, error) {
 	out, err := s.client.Query(ctx, &dynamodb.QueryInput{
 		TableName:              aws.String(s.policiesTable),
 		IndexName:              aws.String(byStatusIndex),
@@ -544,24 +608,33 @@ func (s *DynamoStore) GetPublishedPolicy(ctx context.Context) (*models.Policy, e
 		ExpressionAttributeValues: map[string]dynamodbtypes.AttributeValue{
 			":pub": &dynamodbtypes.AttributeValueMemberS{Value: string(models.PolicyStatusPublished)},
 		},
-		Limit: aws.Int32(1),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("query published policy: %w", err)
+		return nil, fmt.Errorf("query published policies: %w", err)
 	}
-	if len(out.Items) == 0 {
-		return nil, ErrNoPublishedPolicy
+	policies := make([]models.Policy, 0, len(out.Items))
+	seen := map[models.PolicyKind]bool{}
+	for _, raw := range out.Items {
+		var it policyItem
+		if err := attributevalue.UnmarshalMap(raw, &it); err != nil {
+			return nil, fmt.Errorf("unmarshal policy: %w", err)
+		}
+		p := policyFromItem(it)
+		if seen[p.Kind] {
+			// Schema invariant says one published per kind; skip dupes.
+			continue
+		}
+		seen[p.Kind] = true
+		policies = append(policies, p)
 	}
-	var item policyItem
-	if err := attributevalue.UnmarshalMap(out.Items[0], &item); err != nil {
-		return nil, fmt.Errorf("unmarshal policy: %w", err)
-	}
-	p := policyFromItem(item)
-	return &p, nil
+	sort.Slice(policies, func(i, j int) bool {
+		return policies[i].Kind < policies[j].Kind
+	})
+	return policies, nil
 }
 
 // ListPolicies returns every primary policy row (excludes SLUG# sentinels by
-// filtering on the `kind` attribute) sorted by CreatedAt descending.
+// filtering on the rowKind attribute) sorted by CreatedAt descending.
 func (s *DynamoStore) ListPolicies(ctx context.Context) ([]models.Policy, error) {
 	items, err := s.scanAll(ctx, s.policiesTable)
 	if err != nil {
@@ -573,7 +646,7 @@ func (s *DynamoStore) ListPolicies(ctx context.Context) ([]models.Policy, error)
 		if err := attributevalue.UnmarshalMap(raw, &it); err != nil {
 			continue
 		}
-		if it.Kind != "policy" {
+		if it.RowKind != "policy" {
 			continue
 		}
 		policies = append(policies, policyFromItem(it))

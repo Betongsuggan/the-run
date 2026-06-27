@@ -142,6 +142,7 @@ export async function adminBulkUpdateRegistrations(
 // ─── Privacy policies (admin CRUD) ──────────────────────────────────────
 
 export type CreatePolicyInput = {
+	kind: string;
 	slug: string;
 	effectiveFrom: string;
 	bodySv: string;

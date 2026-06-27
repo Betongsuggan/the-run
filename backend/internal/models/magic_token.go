@@ -38,9 +38,9 @@ const (
 // data (registrationId for guardian, newEmail for email_change, etc.).
 type MagicToken struct {
 	Kind      TokenKind
-	ID        string
+	ID        string `gdpr:"credential;purposes=dsr,registration"`
 	AccountID string
-	ContextID string
+	ContextID string `gdpr:"operational;purposes=dsr,registration"`
 	ExpiresAt time.Time
 	UsedAt    *time.Time
 	CreatedAt time.Time

@@ -29,18 +29,17 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/audit"
 	"github.com/BirgerRydback/the-run/backend/internal/auth"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
+	"github.com/BirgerRydback/the-run/backend/internal/gdpr"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
-// dsrAccessTokenTTL is short by design — the link is one-shot and a fresh one
-// is cheap to mint. Limits the window an intercepted link is usable.
-const dsrAccessTokenTTL = 30 * time.Minute
-
-// emailChangeTokenTTL is the window the user has to confirm a new email
-// address from their new inbox. 1 day balances "give them time" with
-// "limit replay window for an intercepted link".
-const emailChangeTokenTTL = 24 * time.Hour
+// Retention windows + magic-token TTLs come from internal/gdpr — the same
+// constants the retention sweep honours and the ROPA generator publishes.
+const (
+	dsrAccessTokenTTL   = gdpr.DSRAccessTokenTTL
+	emailChangeTokenTTL = gdpr.EmailChangeTokenTTL
+)
 
 // ── Inputs / outputs ──────────────────────────────────────────────────────
 
@@ -123,9 +122,7 @@ type dsrAccountDTO struct {
 	InactivityDeletionAt string `json:"inactivityDeletionAt,omitempty"`
 }
 
-// accountInactivityWindowMonths matches sweepInactiveAccounts in the
-// retention Lambda. Bumping one requires bumping the other.
-const accountInactivityWindowMonths = 36
+const accountInactivityWindowMonths = gdpr.AccountInactivityMonths
 
 type dsrRunnerDTO struct {
 	ID                   string         `json:"id"`
@@ -149,10 +146,7 @@ type dsrRunnerRetentionDTO struct {
 	LastFinishedRace string `json:"lastFinishedRace,omitempty"`
 }
 
-// nonConsentingRunnerWindowMonths mirrors the retention Lambda's constant.
-// Kept in sync by hand — there are only two call sites and changing the
-// window is a deliberate policy decision either way.
-const nonConsentingRunnerWindowMonths = 36
+const nonConsentingRunnerWindowMonths = gdpr.NonConsentingRunnerWindowMonths
 
 type dsrConsentDTO struct {
 	Granted        bool   `json:"granted"`
@@ -160,6 +154,11 @@ type dsrConsentDTO struct {
 	PolicyID       string `json:"policyId,omitempty"`
 	PolicyRevision int    `json:"policyRevision,omitempty"`
 	PolicyVersion  string `json:"policyVersion"`
+	// PolicyKind is the kind of policy this consent references, resolved
+	// from the policies table at response-time. Used by /my-data to group
+	// consents by policy document. Empty for legacy consents that predate
+	// the kind field — frontend treats empty as "privacy".
+	PolicyKind string `json:"policyKind,omitempty"`
 }
 
 type dsrRegistrationDTO struct {
@@ -426,7 +425,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		// Look up the currently-published policy so each new consent stamp
 		// points at the right version. If no policy is published the whole
 		// PATCH is rejected — same rationale as the registration handler.
-		currentPolicy, err := s.GetPublishedPolicy(ctx)
+		currentPolicy, err := s.GetPublishedPolicy(ctx, models.PolicyKindPrivacy)
 		if err != nil {
 			if errors.Is(err, store.ErrNoPublishedPolicy) {
 				return nil, huma.Error503ServiceUnavailable("consent updates are paused — no privacy policy is published")
@@ -1016,9 +1015,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 	})
 }
 
-// deletionGraceWindow is how long a soft-deleted account/runner sits before
-// the retention Lambda hard-purges PII. Matches the GDPR plan A1.1 spec.
-const deletionGraceWindow = 30 * 24 * time.Hour
+const deletionGraceWindow = gdpr.InactivityDeletionGrace
 
 // cascadePendingDeletion flips a runner's IN-FLIGHT registrations to
 // pending_deletion so admins don't see them in pipelines while the runner
@@ -1238,7 +1235,44 @@ func buildDSRMeBody(ctx context.Context, s store.Store, recorder audit.Recorder)
 		}
 	}
 
+	// Resolve PolicyKind for every consent. The /my-data UI groups consents
+	// by kind, and the consent rows only carry PolicyID. One GetPolicyByID
+	// per unique policy id is fine — there's typically one across the whole
+	// account today.
+	resolvePolicyKinds(ctx, s, body)
+
 	return body, nil
+}
+
+// resolvePolicyKinds back-fills PolicyKind on every consent in the response.
+// Uses a small in-request cache so we don't re-fetch the same policy. Failures
+// are silent — the field is informational and the frontend defaults missing
+// values to "privacy" anyway.
+func resolvePolicyKinds(ctx context.Context, s store.Store, body *dsrMeBody) {
+	cache := map[string]string{}
+	lookup := func(id string) string {
+		if id == "" {
+			return ""
+		}
+		if k, ok := cache[id]; ok {
+			return k
+		}
+		p, err := s.GetPolicyByID(ctx, id)
+		if err != nil || p == nil {
+			cache[id] = ""
+			return ""
+		}
+		cache[id] = string(p.Kind)
+		return string(p.Kind)
+	}
+	if body.Account.MarketingConsent != nil {
+		body.Account.MarketingConsent.PolicyKind = lookup(body.Account.MarketingConsent.PolicyID)
+	}
+	for i := range body.Runners {
+		if body.Runners[i].PublicResultsConsent != nil {
+			body.Runners[i].PublicResultsConsent.PolicyKind = lookup(body.Runners[i].PublicResultsConsent.PolicyID)
+		}
+	}
 }
 
 // computeRunnerRetention summarizes when (or whether) the retention sweep

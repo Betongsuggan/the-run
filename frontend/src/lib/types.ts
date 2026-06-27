@@ -78,12 +78,18 @@ export type ResultExpanded = Result & {
 
 export type PolicyStatus = 'draft' | 'published' | 'archived';
 
-// Versioned privacy policy. The body is admin-authored markdown; the
-// `slug` is the human-facing version label runners see (e.g. "2026-08-01").
-// `revision` bumps on in-place edits of a published policy and is part of
-// the FK referenced by each Consent record.
+// PolicyKind identifies which user-facing document a Policy row represents.
+// Currently only the privacy policy is defined; the type stays a plain string
+// to keep extension friction-free as we add ToS / Code of Conduct / etc.
+export type PolicyKind = 'privacy';
+
+// Versioned policy document. The body is admin-authored markdown; the `slug`
+// is the human-facing version label users see (e.g. "2026-08-01"). `revision`
+// bumps on in-place edits of a published policy and is part of the FK
+// referenced by each Consent record.
 export type Policy = {
 	id: ID;
+	kind: PolicyKind;
 	slug: string;
 	status: PolicyStatus;
 	revision: number;

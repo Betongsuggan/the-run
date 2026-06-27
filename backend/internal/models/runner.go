@@ -14,9 +14,9 @@ type RunnerConsents struct {
 type Runner struct {
 	ID        string
 	AccountID string
-	Name      string
-	BirthDate string
-	Gender    string
+	Name      string `gdpr:"identifying;purposes=registration,public-results"`
+	BirthDate string `gdpr:"identifying;purposes=registration"`
+	Gender    string `gdpr:"identifying;purposes=registration,public-results"`
 	Consents  RunnerConsents
 	CreatedAt time.Time
 	// DeletionPendingUntil is set when this runner is in the 30-day grace

@@ -369,6 +369,93 @@
 		if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
 		return age;
 	}
+
+	// ── Accepted policies ───────────────────────────────────────────────
+	// Aggregate every consent in the DSR response into one group per policy
+	// document. Today one group (privacy) — designed to render N when more
+	// policy kinds exist.
+
+	type AcceptedConsentLine = {
+		key: string;
+		label: string;
+		granted: boolean;
+		acceptedAt: string;
+		policyId?: string;
+		policyRevision?: number;
+		policyVersion: string;
+	};
+
+	type AcceptedPolicyGroup = {
+		policyId: string;
+		kind: string;
+		title: string;
+		slug: string;
+		revision: number;
+		entries: AcceptedConsentLine[];
+	};
+
+	const acceptedPolicyGroups = $derived.by<AcceptedPolicyGroup[]>(() => {
+		if (!me) return [];
+		const lines: { line: AcceptedConsentLine; kind: string }[] = [];
+		if (me.account.marketingConsent) {
+			const c = me.account.marketingConsent;
+			lines.push({
+				kind: c.policyKind || 'privacy',
+				line: {
+					key: 'marketing',
+					label: i18n.m.myData.acceptedLine.marketing,
+					granted: c.granted,
+					acceptedAt: c.at.slice(0, 10),
+					policyId: c.policyId,
+					policyRevision: c.policyRevision,
+					policyVersion: c.policyVersion
+				}
+			});
+		}
+		for (const r of me.runners) {
+			const c = r.publicResultsConsent;
+			if (!c) continue;
+			lines.push({
+				kind: c.policyKind || 'privacy',
+				line: {
+					key: `publicResults:${r.id}`,
+					label: i18n.m.myData.acceptedLine.publicResults(r.name),
+					granted: c.granted,
+					acceptedAt: c.at.slice(0, 10),
+					policyId: c.policyId,
+					policyRevision: c.policyRevision,
+					policyVersion: c.policyVersion
+				}
+			});
+		}
+		const byPolicy = new Map<string, AcceptedPolicyGroup>();
+		for (const { line, kind } of lines) {
+			const key = line.policyId ?? `legacy:${line.policyVersion}`;
+			let group = byPolicy.get(key);
+			if (!group) {
+				group = {
+					policyId: line.policyId ?? '',
+					kind,
+					title: i18n.m.policies.kindLabel[kind as 'privacy'] ?? kind,
+					slug: line.policyVersion,
+					revision: line.policyRevision ?? 0,
+					entries: []
+				};
+				byPolicy.set(key, group);
+			}
+			group.entries.push(line);
+		}
+		return Array.from(byPolicy.values());
+	});
+
+	function deepLinkFor(entry: AcceptedConsentLine): string | null {
+		if (!entry.policyId || !entry.policyRevision) return null;
+		return `/privacy?v=${encodeURIComponent(entry.policyId)}&r=${entry.policyRevision}`;
+	}
+
+	function hubLinkFor(group: AcceptedPolicyGroup): string {
+		return group.kind === 'privacy' ? '/privacy' : `/policies/${encodeURIComponent(group.kind)}`;
+	}
 </script>
 
 <section class="mx-auto max-w-2xl py-8 px-4 space-y-6">
@@ -573,6 +660,59 @@
 				</p>
 			{/if}
 		</section>
+
+		<!-- Accepted policies — aggregated view across every consent on the
+		     account. One section per policy document; today there's always
+		     exactly one (privacy), but the layout is ready for ToS, Code of
+		     Conduct etc. -->
+		{#if acceptedPolicyGroups.length > 0}
+			<section
+				class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-4"
+			>
+				<h2 class="text-lg font-semibold">{i18n.m.myData.acceptedPoliciesHeading}</h2>
+				<ul class="space-y-5">
+					{#each acceptedPolicyGroups as group (group.policyId || group.slug)}
+						<li class="space-y-2">
+							<header class="flex items-baseline justify-between gap-3 flex-wrap">
+								<h3 class="font-medium">{group.title}</h3>
+								<span class="text-xs font-mono opacity-70">
+									{i18n.m.policies.versionLabel(group.slug, group.revision)}
+								</span>
+							</header>
+							<ul class="space-y-1 text-sm pl-4 list-disc marker:opacity-60">
+								{#each group.entries as entry (entry.key)}
+									<li>
+										<span class="font-medium">{entry.label}:</span>
+										{entry.granted
+											? i18n.m.myData.consentGranted
+											: i18n.m.myData.consentNot}
+										<span class="opacity-70"
+											>—
+											{#if deepLinkFor(entry)}
+												<a
+													href={deepLinkFor(entry)}
+													class="underline hover:text-primary-700 dark:hover:text-primary-300"
+												>
+													{i18n.m.myData.acceptedLine.dateLink(entry.acceptedAt)}
+												</a>
+											{:else}
+												{i18n.m.myData.acceptedLine.dateOnly(entry.acceptedAt)}
+											{/if}
+										</span>
+									</li>
+								{/each}
+							</ul>
+							<a
+								href={hubLinkFor(group)}
+								class="text-xs text-primary-700 dark:text-primary-300 hover:underline inline-block"
+							>
+								{i18n.m.policies.viewFull} →
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
 
 		<!-- Runners -->
 		<section class="card preset-filled-surface-50-950 border border-surface-200-800 p-6 space-y-4">

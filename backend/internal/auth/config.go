@@ -10,6 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+
+	"github.com/BirgerRydback/the-run/backend/internal/gdpr"
 )
 
 // Config holds the shared auth-package configuration: the signing secret and
@@ -48,9 +50,9 @@ func LoadConfig(ctx context.Context) (Config, error) {
 			JWTSecret:     secret,
 			CookieDomain:  os.Getenv("COOKIE_DOMAIN"),
 			SecureCookies: os.Getenv("INSECURE_COOKIES") != "1",
-			SessionTTL:    8 * 60 * 60,
-			ChallengeTTL:  5 * 60,
-			AttemptTTL:    15 * 60,
+			SessionTTL:    int(gdpr.SessionTTL.Seconds()),
+			ChallengeTTL:  int(gdpr.ChallengeTTL.Seconds()),
+			AttemptTTL:    int(gdpr.AuthAttemptTTL.Seconds()),
 			MaxAttempts:   5,
 		}
 	})

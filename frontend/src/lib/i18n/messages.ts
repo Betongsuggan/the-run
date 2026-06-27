@@ -145,10 +145,10 @@ const sv = {
 		racePlaceholder: 'Välj ett kommande lopp',
 		consentPublicResultsLabel: 'Visa mitt resultat publikt',
 		consentPublicResultsHelp:
-			'Ditt namn, klass och tid visas i de publika resultatlistorna. Avmarkera om du föredrar att vara anonym.',
+			'Ditt namn, åldersklass och sluttid visas i de publika resultatlistorna. Avmarkera om du vill stå som "Anonym" — startnummer och tid finns kvar i listan oavsett. Du kan ändra valet senare på /my-data.',
 		consentMarketingLabel: 'Skicka mig nyheter och inbjudningar',
 		consentMarketingHelp:
-			'Sällsynta utskick om kommande lopp. Du kan när som helst avregistrera dig.',
+			'Sällsynta utskick (några per år) om kommande lopp. Du kan avregistrera dig direkt i mejlen eller via /my-data när du vill.',
 		guardianNoticeHeading: 'Målsmans samtycke krävs',
 		guardianNoticeUnder13:
 			'Eftersom löparen är under 13 år behöver vi en målsmans samtycke. Ange målsmans e-post ovan; vi mejlar en bekräftelselänk som måste klickas inom 7 dagar för att anmälan ska bli aktiv.',
@@ -209,6 +209,13 @@ const sv = {
 			`Godkänd ${date} – version ${slug} rev ${rev}`,
 		consentStampLegacy: (date: string, slug: string) =>
 			`Godkänd ${date} – version ${slug}`,
+		acceptedPoliciesHeading: 'Godkända policyer',
+		acceptedLine: {
+			marketing: 'Nyhetsbrev',
+			publicResults: (name: string) => `Publika resultat (${name})`,
+			dateLink: (date: string) => `godkänt ${date}`,
+			dateOnly: (date: string) => `godkänt ${date}`
+		},
 		runnersHeading: (n: number) =>
 			n === 1 ? '1 löpare under ditt konto' : `${n} löpare under ditt konto`,
 		runnersEmpty: 'Inga löpare ännu — anmäl dig själv eller en familjemedlem.',
@@ -473,11 +480,13 @@ const sv = {
 			sectionPublished: 'Publicerad',
 			sectionDrafts: 'Utkast',
 			sectionArchived: 'Arkiverade',
+			columnKind: 'Typ',
 			columnSlug: 'Version',
 			columnStatus: 'Status',
 			columnRevision: 'Revision',
 			columnEffectiveFrom: 'Träder i kraft',
 			columnUpdated: 'Senast uppdaterad',
+			kindLabel: 'Typ av policy',
 			statusLabel: (s: string): string =>
 				s === 'published' ? 'Publicerad' : s === 'draft' ? 'Utkast' : 'Arkiverad',
 			slugLabel: 'Versionsetikett (visas för användare)',
@@ -507,15 +516,31 @@ const sv = {
 			revEmpty: 'Inga revisioner ännu.'
 		}
 	},
-	privacy: {
-		pageTitle: 'Sekretesspolicy – Ingmarsöloppet',
-		heading: 'Sekretesspolicy',
+	policies: {
+		// Hub (/policies)
+		indexTitle: 'Policydokument – Ingmarsöloppet',
+		indexHeading: 'Policydokument',
+		indexDescription:
+			'Här hittar du alla policydokument som styr användningen av webbplatsen. Klicka på ett dokument för att läsa hela texten.',
+		empty: 'Inga policydokument är publicerade ännu.',
+		viewFull: 'Läs hela',
+		effectiveFrom: (date: string) => `Gäller från ${date}`,
+		// Viewer (shared between /privacy and /policies/[kind])
+		pageTitlePrivacy: 'Sekretesspolicy – Ingmarsöloppet',
 		loading: 'Laddar policy …',
 		notPublished:
-			'Sekretesspolicyn håller på att uppdateras. Anmälningar är pausade tills den är publicerad igen.',
+			'Det här policydokumentet är inte publicerat ännu eller håller på att uppdateras.',
 		versionLabel: (slug: string, rev: number) => `Version ${slug} · rev ${rev}`,
 		historicalBadge: 'Tidigare revision',
-		viewCurrent: 'Visa aktuell version'
+		viewCurrent: 'Visa aktuell version',
+		// Kind → localized title. Indexed by PolicyKind string. Extend when
+		// new kinds are added on the backend.
+		kindLabel: {
+			privacy: 'Sekretesspolicy'
+		} as Record<'privacy', string>
+	},
+	footer: {
+		policies: 'Policydokument'
 	}
 };
 
@@ -659,10 +684,10 @@ const en: Catalog = {
 		racePlaceholder: 'Pick an upcoming race',
 		consentPublicResultsLabel: 'Show my result publicly',
 		consentPublicResultsHelp:
-			'Your name, category and time appear in the public results listings. Uncheck if you prefer to stay anonymous.',
+			'Your name, age class and finish time appear in the public results listings. Uncheck to show as "Anonym" — bib and time stay in the list regardless. You can change this later via /my-data.',
 		consentMarketingLabel: 'Send me race news and invitations',
 		consentMarketingHelp:
-			'Occasional updates about upcoming races. You can unsubscribe at any time.',
+			'A few emails per year about upcoming races. You can unsubscribe from any email or via /my-data whenever you like.',
 		guardianNoticeHeading: 'Guardian consent required',
 		guardianNoticeUnder13:
 			"Because the runner is under 13, we need a parent or guardian's consent. Enter the guardian's email above; we'll send a confirmation link that must be clicked within 7 days for the registration to take effect.",
@@ -724,6 +749,13 @@ const en: Catalog = {
 			`Accepted ${date} – version ${slug} rev ${rev}`,
 		consentStampLegacy: (date: string, slug: string) =>
 			`Accepted ${date} – version ${slug}`,
+		acceptedPoliciesHeading: 'Accepted policies',
+		acceptedLine: {
+			marketing: 'Newsletter',
+			publicResults: (name: string) => `Public results (${name})`,
+			dateLink: (date: string) => `accepted ${date}`,
+			dateOnly: (date: string) => `accepted ${date}`
+		},
 		runnersHeading: (n: number) =>
 			n === 1 ? '1 runner under your account' : `${n} runners under your account`,
 		runnersEmpty: 'No runners yet — sign yourself or a family member up.',
@@ -987,11 +1019,13 @@ const en: Catalog = {
 			sectionPublished: 'Published',
 			sectionDrafts: 'Drafts',
 			sectionArchived: 'Archived',
+			columnKind: 'Type',
 			columnSlug: 'Version',
 			columnStatus: 'Status',
 			columnRevision: 'Revision',
 			columnEffectiveFrom: 'Effective from',
 			columnUpdated: 'Last updated',
+			kindLabel: 'Policy type',
 			statusLabel: (s: string) =>
 				s === 'published' ? 'Published' : s === 'draft' ? 'Draft' : 'Archived',
 			slugLabel: 'Version label (visible to users)',
@@ -1021,15 +1055,26 @@ const en: Catalog = {
 			revEmpty: 'No revisions yet.'
 		}
 	},
-	privacy: {
-		pageTitle: 'Privacy policy – Ingmarsöloppet',
-		heading: 'Privacy policy',
+	policies: {
+		indexTitle: 'Policy documents – Ingmarsöloppet',
+		indexHeading: 'Policy documents',
+		indexDescription:
+			'Every policy document that governs your use of this site. Click a document to read the full text.',
+		empty: 'No policy documents have been published yet.',
+		viewFull: 'Read in full',
+		effectiveFrom: (date: string) => `Effective from ${date}`,
+		pageTitlePrivacy: 'Privacy policy – Ingmarsöloppet',
 		loading: 'Loading policy…',
-		notPublished:
-			'The privacy policy is being updated. Registrations are paused until it is published again.',
+		notPublished: 'This policy document is not published yet or is being updated.',
 		versionLabel: (slug: string, rev: number) => `Version ${slug} · rev ${rev}`,
 		historicalBadge: 'Earlier revision',
-		viewCurrent: 'View current version'
+		viewCurrent: 'View current version',
+		kindLabel: {
+			privacy: 'Privacy policy'
+		} as Record<'privacy', string>
+	},
+	footer: {
+		policies: 'Policy documents'
 	}
 };
 

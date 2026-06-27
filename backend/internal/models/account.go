@@ -32,9 +32,9 @@ type AccountConsents struct {
 // carry PasswordHash and MFASecret; runner-only accounts leave them empty.
 type Account struct {
 	ID           string
-	Email        string
-	PasswordHash string
-	MFASecret    string
+	Email        string `gdpr:"contact;purposes=registration,comms,dsr,marketing"`
+	PasswordHash string `gdpr:"credential;purposes=admin-auth;subject=Administratör"`
+	MFASecret    string `gdpr:"credential;purposes=admin-auth;subject=Administratör"`
 	IsAdmin      bool
 	Consents     AccountConsents
 	Locale       string

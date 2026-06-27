@@ -14,6 +14,10 @@ export type DSRConsent = {
 	// human slug in policyVersion and these fields are undefined.
 	policyId?: string;
 	policyRevision?: number;
+	// Resolved at response time from the policies table. Used by /my-data
+	// to group consents by policy document. Empty for legacy rows that
+	// predate the kind field; UI treats empty as 'privacy'.
+	policyKind?: string;
 };
 
 export type DSRAccount = {

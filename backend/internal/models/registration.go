@@ -33,12 +33,12 @@ type Split struct {
 type Registration struct {
 	ID            string
 	RaceID        string
-	RunnerID      string
+	RunnerID      string `gdpr:"identifying;purposes=registration,public-results"`
 	Status        string
-	Bib           string
+	Bib           string `gdpr:"behavioural;purposes=registration,public-results"`
 	Category      *Category
-	FinishSeconds *int
-	Splits        []Split
+	FinishSeconds *int    `gdpr:"behavioural;purposes=public-results"`
+	Splits        []Split `gdpr:"behavioural;purposes=public-results"`
 	Conditions    string
 	Notes         string
 	CreatedAt     time.Time

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/BirgerRydback/the-run/backend/internal/gdpr"
 )
 
 // DSRSessionCookieName is the cookie that carries a /my-data session JWT.
@@ -21,11 +23,10 @@ type DSRSessionClaims struct {
 	jwt.RegisteredClaims
 }
 
-// DSRSessionTTL is how long a DSR session lives from issuance. Short — the
-// magic-link flow re-issues cheaply, and the session grants full self-service
-// edit + erase powers, so we want a tight window. The frontend can prompt
-// re-auth without much UX cost.
-const DSRSessionTTL = 2 * time.Hour
+// DSRSessionTTL is how long a DSR session lives from issuance. Sourced from
+// internal/gdpr so the ROPA generator publishes the same value the auth
+// package honours.
+const DSRSessionTTL = gdpr.DSRSessionTTL
 
 // IssueDSRSession returns a signed JWT for a /my-data session bound to the
 // given account.

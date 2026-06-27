@@ -22,10 +22,10 @@ import "time"
 type AuditRow struct {
 	AccountID  string
 	At         time.Time
-	Action     string
-	Actor      string
-	TargetType string
-	TargetID   string
-	Summary    string
-	Diff       string
+	Action     string `gdpr:"audit-trail;purposes=audit"`
+	Actor      string `gdpr:"audit-trail;purposes=audit"`
+	TargetType string `gdpr:"audit-trail;purposes=audit"`
+	TargetID   string `gdpr:"audit-trail;purposes=audit"`
+	Summary    string `gdpr:"audit-trail;purposes=audit"`
+	Diff       string `gdpr:"audit-trail;purposes=audit"`
 }

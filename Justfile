@@ -172,6 +172,78 @@ create-admin email='' password='' force='':
       go run ./cmd/admin -email "$EMAIL" -password "$PASSWORD"
     fi
 
+# Seed the initial privacy-policy draft from the markdown files in docs/gdpr/policy/.
+# Idempotent: if a policy with the same slug already exists as a draft, rerun with
+# a non-empty `force` arg to refresh the body. Refuses to touch published/archived
+# rows — for those, create a new version via the admin GUI instead.
+#
+# After seeding, log into /admin/policies to review the draft and publish it.
+#
+# Usage (positional, matching create-admin):
+#   just seed-policy
+#   just seed-policy 2026-06-26
+#   just seed-policy 2026-06-26 docs/gdpr/policy/2026-06-26-sv.md docs/gdpr/policy/2026-06-26-en.md force
+seed-policy slug='2026-06-26' sv='docs/gdpr/policy/2026-06-26-sv.md' en='docs/gdpr/policy/2026-06-26-en.md' force='' kind='privacy':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # `just` passes args positionally — strip `key=` prefixes so callers can
+    # write `just seed-policy force=1` ergonomically (mirrors create-admin).
+    SLUG="{{slug}}"
+    SV="{{sv}}"
+    EN="{{en}}"
+    SLUG="${SLUG#slug=}"
+    SV="${SV#sv=}"
+    EN="${EN#en=}"
+    REPO="{{justfile_directory()}}"
+    SV_ABS="$REPO/$SV"
+    EN_ABS="$REPO/$EN"
+    if [ ! -f "$SV_ABS" ] || [ ! -f "$EN_ABS" ]; then
+      echo "missing markdown file(s): $SV_ABS or $EN_ABS" >&2
+      exit 2
+    fi
+    cd "$REPO/backend"
+    if [ -n "${AWS_PROFILE:-}" ] && [ -z "${AWS_ENDPOINT_URL:-}" ]; then
+      eval "$(aws configure export-credentials --profile "$AWS_PROFILE" --format env)"
+    fi
+    : "${RUNNERS_TABLE_NAME:=the-run-runners}"
+    : "${REGISTRATIONS_TABLE_NAME:=the-run-registrations}"
+    : "${EVENTS_TABLE_NAME:=the-run-events}"
+    : "${RACES_TABLE_NAME:=the-run-races}"
+    : "${ACCOUNTS_TABLE_NAME:=the-run-accounts}"
+    : "${AUTH_ATTEMPTS_TABLE_NAME:=the-run-auth-attempts}"
+    : "${MAGIC_TOKENS_TABLE_NAME:=the-run-magic-tokens}"
+    : "${AUDIT_TABLE_NAME:=the-run-audit}"
+    : "${RATE_LIMIT_TABLE_NAME:=the-run-rate-limit}"
+    : "${POLICIES_TABLE_NAME:=the-run-policies}"
+    : "${POLICY_REVISIONS_TABLE_NAME:=the-run-policy-revisions}"
+    export RUNNERS_TABLE_NAME REGISTRATIONS_TABLE_NAME EVENTS_TABLE_NAME RACES_TABLE_NAME ACCOUNTS_TABLE_NAME AUTH_ATTEMPTS_TABLE_NAME MAGIC_TOKENS_TABLE_NAME AUDIT_TABLE_NAME RATE_LIMIT_TABLE_NAME POLICIES_TABLE_NAME POLICY_REVISIONS_TABLE_NAME
+    FORCE="{{force}}"
+    FORCE="${FORCE#force=}"
+    KIND="{{kind}}"
+    KIND="${KIND#kind=}"
+    if [ -n "$FORCE" ]; then
+      go run ./cmd/seed-policy -slug "$SLUG" -kind "$KIND" -sv "$SV_ABS" -en "$EN_ABS" -force
+    else
+      go run ./cmd/seed-policy -slug "$SLUG" -kind "$KIND" -sv "$SV_ABS" -en "$EN_ABS"
+    fi
+
+# Re-render docs/gdpr/ropa.md and docs/gdpr/dpia-screening.md from the gdpr:
+# struct tags on internal/models/*.go and the registries in internal/gdpr/.
+# Run after editing any tag, retention constant, sub-processor, or table
+# posture. The DPIA scaffold preserves operator-written prose between the
+# <!-- gdpr:prose:NAME --> markers across re-runs.
+#
+# CI also re-runs the generator via `go test ./...` (see drift_test.go);
+# any drift between the committed docs and what the generator would emit
+# fails the build.
+gen-gdpr:
+    cd backend && go run ./cmd/gen-gdpr \
+      -models internal/models \
+      -ropa ../docs/gdpr/ropa.md \
+      -dpia ../docs/gdpr/dpia-screening.md \
+      -subprocessors ../docs/gdpr/subprocessors.md \
+      -retention ../docs/gdpr/retention.md
+
 # Wipe all the-run-* tables in LocalStack and re-create them via Pulumi. Use
 # when iterating on schema changes during development.
 reset-data: localstack-up

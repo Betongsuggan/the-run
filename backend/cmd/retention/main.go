@@ -35,36 +35,22 @@ import (
 
 	"github.com/BirgerRydback/the-run/backend/internal/audit"
 	"github.com/BirgerRydback/the-run/backend/internal/email"
+	"github.com/BirgerRydback/the-run/backend/internal/gdpr"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
-// Time-based retention rules (GDPR A1.3, schedule in B1.4). These are
-// in addition to the DSR-driven soft-delete sweep that's been here since
-// A1.1.3.
+// Time-based retention windows come from internal/gdpr (GDPR A1.3, schedule
+// in B1.4). The ROPA generator reads from the same constants, so the legal
+// record can't drift from the sweep's actual behaviour.
 const (
-	// nonConsentingRunnerWindow — anonymize a runner's PII this long after
-	// their most recent finished race, when they opted out of public
-	// results. Sliding window: any new finished race resets the clock.
-	nonConsentingRunnerWindow = 36
-	// nonFinishedRegistrationWindow — drop DNS/DNF registrations this long
-	// after race day. They're not result history; lingering rows just add
-	// PII surface area.
-	nonFinishedRegistrationWindow = 6
-	// auditLogWindow — purge audit rows older than this. Matches B1.4's
-	// 24-month admin-audit retention.
-	auditLogWindow = 24
-	// accountInactivityWindow — soft-delete accounts with no recent
-	// activity. Mirrors accountInactivityWindowMonths in internal/api/dsr.go;
-	// bumping one requires bumping the other.
-	accountInactivityWindow = 36
+	nonConsentingRunnerWindow     = gdpr.NonConsentingRunnerWindowMonths
+	nonFinishedRegistrationWindow = gdpr.NonFinishedRegistrationMonths
+	auditLogWindow                = gdpr.AuditLogMonths
+	accountInactivityWindow       = gdpr.AccountInactivityMonths
 )
 
-// inactivityDeletionGrace is the runway between an inactivity notice email
-// and the actual hard-purge. Matches deletionGraceWindow in
-// internal/api/dsr.go (30 days). Long enough for a user to act on the
-// email; short enough not to keep stale PII around.
-const inactivityDeletionGrace = 30 * 24 * time.Hour
+const inactivityDeletionGrace = gdpr.InactivityDeletionGrace
 
 func main() {
 	if isLambdaRuntime() {

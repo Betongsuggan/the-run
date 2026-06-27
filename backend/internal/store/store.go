@@ -152,8 +152,9 @@ type Store interface {
 	PublishPolicy(ctx context.Context, id, publisherID string, at time.Time) error
 	ArchivePolicy(ctx context.Context, id string) error
 	GetPolicyByID(ctx context.Context, id string) (*models.Policy, error)
-	GetPolicyBySlug(ctx context.Context, slug string) (*models.Policy, error)
-	GetPublishedPolicy(ctx context.Context) (*models.Policy, error)
+	GetPolicyBySlug(ctx context.Context, kind models.PolicyKind, slug string) (*models.Policy, error)
+	GetPublishedPolicy(ctx context.Context, kind models.PolicyKind) (*models.Policy, error)
+	ListPublishedPolicies(ctx context.Context) ([]models.Policy, error)
 	ListPolicies(ctx context.Context) ([]models.Policy, error)
 	GetPolicyRevision(ctx context.Context, policyID string, revision int) (*models.PolicyRevision, error)
 	ListPolicyRevisions(ctx context.Context, policyID string) ([]models.PolicyRevision, error)
