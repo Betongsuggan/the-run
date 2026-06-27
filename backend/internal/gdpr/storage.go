@@ -99,6 +99,28 @@ var Tables = []TablePosture{
 		DescSv: "Bevarade tidigare versioner av policyer (snapshots).",
 		DescEn: "Preserved earlier policy revisions (snapshots).",
 	},
+	{
+		Name:   "the-run-email-templates",
+		SSE:    true,
+		PITR:   true,
+		DescSv: "Versionerade textinnehåll för transaktionsmejl (kvitton, magic links).",
+		DescEn: "Versioned plain-text bodies for transactional emails (receipts, magic links).",
+	},
+	{
+		Name:   "the-run-email-template-revisions",
+		SSE:    true,
+		PITR:   false,
+		DescSv: "Bevarade tidigare versioner av mejlmallar (snapshots).",
+		DescEn: "Preserved earlier email-template revisions (snapshots).",
+	},
+	{
+		Name:         "the-run-admin-invitations",
+		SSE:          true,
+		PITR:         false,
+		TTLAttribute: "expiresAt",
+		DescSv:       "Pågående administratörsinbjudningar (e-post + hashad engångstoken) — auto-rensas via TTL efter 7 dagar.",
+		DescEn:       "Pending admin invitations (email + hashed one-shot token) — auto-cleared via TTL after 7 days.",
+	},
 }
 
 // SecurityMeasures lists the technical/organizational measures the ROPA

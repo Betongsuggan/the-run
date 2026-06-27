@@ -105,6 +105,7 @@ func Setup(
 		tables.Runners.Arn, tables.Registrations.Arn, tables.Events.Arn, tables.Races.Arn,
 		tables.Accounts.Arn, tables.AuthAttempts.Arn, tables.MagicTokens.Arn, tables.Audit.Arn,
 		tables.RateLimit.Arn, tables.Policies.Arn, tables.PolicyRevisions.Arn,
+		tables.EmailTemplates.Arn, tables.EmailTemplateRevisions.Arn, tables.AdminInvitations.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		runnersArn := args[0].(string)
 		regsArn := args[1].(string)
@@ -117,6 +118,9 @@ func Setup(
 		rateLimitArn := args[8].(string)
 		policiesArn := args[9].(string)
 		policyRevisionsArn := args[10].(string)
+		emailTemplatesArn := args[11].(string)
+		emailTemplateRevisionsArn := args[12].(string)
+		adminInvitationsArn := args[13].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -152,6 +156,9 @@ func Setup(
 						policiesArn,
 						policiesArn + "/index/*",
 						policyRevisionsArn,
+						emailTemplatesArn,
+						emailTemplateRevisionsArn,
+						adminInvitationsArn,
 					},
 				},
 			},
@@ -265,9 +272,12 @@ func Setup(
 				"RATE_LIMIT_TABLE_NAME":       tables.RateLimit.Name,
 				"MAGIC_TOKENS_TABLE_NAME":     tables.MagicTokens.Name,
 				"AUDIT_TABLE_NAME":            tables.Audit.Name,
-				"POLICIES_TABLE_NAME":         tables.Policies.Name,
-				"POLICY_REVISIONS_TABLE_NAME": tables.PolicyRevisions.Name,
-				"JWT_SECRET_ARN":              jwtSecret.Arn,
+				"POLICIES_TABLE_NAME":                 tables.Policies.Name,
+				"POLICY_REVISIONS_TABLE_NAME":         tables.PolicyRevisions.Name,
+				"EMAIL_TEMPLATES_TABLE_NAME":          tables.EmailTemplates.Name,
+				"EMAIL_TEMPLATE_REVISIONS_TABLE_NAME": tables.EmailTemplateRevisions.Name,
+				"ADMIN_INVITATIONS_TABLE_NAME":        tables.AdminInvitations.Name,
+				"JWT_SECRET_ARN":                      jwtSecret.Arn,
 				"SES_SENDER_ADDRESS":          pulumi.String(em.SenderAddress),
 				"SES_CONFIGURATION_SET":       em.ConfigurationSet.ConfigurationSetName,
 				"COOKIE_DOMAIN":               pulumi.String("." + cookieDomain), // common parent so api.<x> and site can share the cookie

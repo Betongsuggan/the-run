@@ -29,31 +29,37 @@ func pitrEnabled() *dynamodb.TablePointInTimeRecoveryArgs {
 }
 
 const (
-	RunnersTableName         = "the-run-runners"
-	RegistrationsTableName   = "the-run-registrations"
-	EventsTableName          = "the-run-events"
-	RacesTableName           = "the-run-races"
-	AccountsTableName        = "the-run-accounts"
-	AuthAttemptsTableName    = "the-run-auth-attempts"
-	MagicTokensTableName     = "the-run-magic-tokens"
-	AuditTableName           = "the-run-audit"
-	RateLimitTableName       = "the-run-rate-limit"
-	PoliciesTableName        = "the-run-policies"
-	PolicyRevisionsTableName = "the-run-policy-revisions"
+	RunnersTableName                = "the-run-runners"
+	RegistrationsTableName          = "the-run-registrations"
+	EventsTableName                 = "the-run-events"
+	RacesTableName                  = "the-run-races"
+	AccountsTableName               = "the-run-accounts"
+	AuthAttemptsTableName           = "the-run-auth-attempts"
+	MagicTokensTableName            = "the-run-magic-tokens"
+	AuditTableName                  = "the-run-audit"
+	RateLimitTableName              = "the-run-rate-limit"
+	PoliciesTableName               = "the-run-policies"
+	PolicyRevisionsTableName        = "the-run-policy-revisions"
+	EmailTemplatesTableName         = "the-run-email-templates"
+	EmailTemplateRevisionsTableName = "the-run-email-template-revisions"
+	AdminInvitationsTableName       = "the-run-admin-invitations"
 )
 
 type Tables struct {
-	Runners         *dynamodb.Table
-	Registrations   *dynamodb.Table
-	Events          *dynamodb.Table
-	Races           *dynamodb.Table
-	Accounts        *dynamodb.Table
-	AuthAttempts    *dynamodb.Table
-	MagicTokens     *dynamodb.Table
-	Audit           *dynamodb.Table
-	RateLimit       *dynamodb.Table
-	Policies        *dynamodb.Table
-	PolicyRevisions *dynamodb.Table
+	Runners                *dynamodb.Table
+	Registrations          *dynamodb.Table
+	Events                 *dynamodb.Table
+	Races                  *dynamodb.Table
+	Accounts               *dynamodb.Table
+	AuthAttempts           *dynamodb.Table
+	MagicTokens            *dynamodb.Table
+	Audit                  *dynamodb.Table
+	RateLimit              *dynamodb.Table
+	Policies               *dynamodb.Table
+	PolicyRevisions        *dynamodb.Table
+	EmailTemplates         *dynamodb.Table
+	EmailTemplateRevisions *dynamodb.Table
+	AdminInvitations       *dynamodb.Table
 }
 
 func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
@@ -311,17 +317,79 @@ func Setup(ctx *pulumi.Context, provider *aws.Provider) (*Tables, error) {
 		return nil, err
 	}
 
+	// Email templates — admin-editable copy for every transactional email
+	// (guardian consent, DSR, retention, admin invite). PK=slug (S). The set
+	// of valid slugs is closed in models.KnownEmailTemplateSlugs; no
+	// uniqueness sentinel needed. PITR on because losing a published body
+	// would mean losing copy admins last edited; SSE on.
+	emailTemplates, err := dynamodb.NewTable(ctx, "email-templates-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(EmailTemplatesTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("slug"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("slug"), Type: pulumi.String("S")},
+		},
+		ServerSideEncryption: sseEnabled(),
+		PointInTimeRecovery:  pitrEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Email template revisions — append-only snapshot history. PK=slug (S),
+	// SK=revision (S, zero-padded). Mirrors policy-revisions: head body
+	// lives in EmailTemplatesTableName (PITR'd); these rows are append-only
+	// telemetry on edits, no PITR needed.
+	emailTemplateRevisions, err := dynamodb.NewTable(ctx, "email-template-revisions-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(EmailTemplateRevisionsTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("slug"),
+		RangeKey:    pulumi.String("revision"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("slug"), Type: pulumi.String("S")},
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("revision"), Type: pulumi.String("S")},
+		},
+		ServerSideEncryption: sseEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Admin invitations — pending invites from existing admins to onboard
+	// new ones. PK=tokenHash (S, SHA-256 of the raw invite token). TTL on
+	// `expiresAt` (epoch seconds) auto-evicts expired/used rows. SSE on; no
+	// PITR — invitation state is short-lived and recoverable by re-inviting.
+	adminInvitations, err := dynamodb.NewTable(ctx, "admin-invitations-table", &dynamodb.TableArgs{
+		Name:        pulumi.String(AdminInvitationsTableName),
+		BillingMode: pulumi.String("PAY_PER_REQUEST"),
+		HashKey:     pulumi.String("tokenHash"),
+		Attributes: dynamodb.TableAttributeArray{
+			&dynamodb.TableAttributeArgs{Name: pulumi.String("tokenHash"), Type: pulumi.String("S")},
+		},
+		Ttl: &dynamodb.TableTtlArgs{
+			AttributeName: pulumi.String("expiresAt"),
+			Enabled:       pulumi.Bool(true),
+		},
+		ServerSideEncryption: sseEnabled(),
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Tables{
-		Runners:         runners,
-		Registrations:   registrations,
-		Events:          events,
-		Races:           races,
-		Accounts:        accounts,
-		AuthAttempts:    authAttempts,
-		MagicTokens:     magicTokens,
-		Audit:           audit,
-		RateLimit:       rateLimit,
-		Policies:        policies,
-		PolicyRevisions: policyRevisions,
+		Runners:                runners,
+		Registrations:          registrations,
+		Events:                 events,
+		Races:                  races,
+		Accounts:               accounts,
+		AuthAttempts:           authAttempts,
+		MagicTokens:            magicTokens,
+		Audit:                  audit,
+		RateLimit:              rateLimit,
+		Policies:               policies,
+		PolicyRevisions:        policyRevisions,
+		EmailTemplates:         emailTemplates,
+		EmailTemplateRevisions: emailTemplateRevisions,
+		AdminInvitations:       adminInvitations,
 	}, nil
 }

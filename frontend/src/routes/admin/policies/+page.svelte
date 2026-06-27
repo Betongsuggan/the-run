@@ -63,7 +63,7 @@
 		editing = { kind: 'create' };
 		slug = todayDateSlug();
 		policyKind = 'privacy';
-		effectiveFrom = new Date().toISOString();
+		effectiveFrom = toLocalInputValue(new Date());
 		bodySv = '';
 		bodyEn = '';
 		note = '';
@@ -75,12 +75,30 @@
 		editing = { kind: 'edit', policy };
 		slug = policy.slug;
 		policyKind = policy.kind;
-		effectiveFrom = policy.effectiveFrom;
+		effectiveFrom = toLocalInputValue(new Date(policy.effectiveFrom));
 		bodySv = policy.bodySv;
 		bodyEn = policy.bodyEn;
 		note = '';
 		formError = null;
 		activeTab = 'sv';
+	}
+
+	// `<input type="datetime-local">` works in local time with the format
+	// `YYYY-MM-DDTHH:mm` (no seconds, no tz). The backend's Huma validator
+	// expects RFC 3339 (`format:"date-time"`). These helpers bridge: read
+	// from the input as local-wall-clock, send UTC ISO to the server.
+	function toLocalInputValue(d: Date): string {
+		if (Number.isNaN(d.getTime())) return '';
+		const pad = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	}
+
+	function fromLocalInputValue(local: string): string {
+		const d = new Date(local);
+		if (Number.isNaN(d.getTime())) {
+			throw new Error(`invalid datetime: ${local}`);
+		}
+		return d.toISOString();
 	}
 
 	async function openHistory(policy: Policy) {
@@ -106,7 +124,7 @@
 				await adminCreatePolicy({
 					kind: policyKind,
 					slug: slug.trim(),
-					effectiveFrom,
+					effectiveFrom: fromLocalInputValue(effectiveFrom),
 					bodySv,
 					bodyEn
 				});

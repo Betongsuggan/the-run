@@ -66,7 +66,7 @@ func setupRetention(
 	//                                      retention.runner.anonymized rows
 	dynamoPolicy := pulumi.All(
 		tables.Accounts.Arn, tables.Runners.Arn, tables.Registrations.Arn, tables.MagicTokens.Arn,
-		tables.Events.Arn, tables.Races.Arn, tables.Audit.Arn,
+		tables.Events.Arn, tables.Races.Arn, tables.Audit.Arn, tables.EmailTemplates.Arn,
 	).ApplyT(func(args []any) (string, error) {
 		accountsArn := args[0].(string)
 		runnersArn := args[1].(string)
@@ -75,6 +75,7 @@ func setupRetention(
 		eventsArn := args[4].(string)
 		racesArn := args[5].(string)
 		auditArn := args[6].(string)
+		emailTemplatesArn := args[7].(string)
 		doc, err := json.Marshal(map[string]any{
 			"Version": "2012-10-17",
 			"Statement": []any{
@@ -100,6 +101,10 @@ func setupRetention(
 						eventsArn,
 						racesArn,
 						auditArn,
+						// Read-only in practice — the renderer GETs the
+						// published template row when composing the
+						// inactivity-notice email.
+						emailTemplatesArn,
 					},
 				},
 			},
@@ -182,8 +187,11 @@ func setupRetention(
 				"MAGIC_TOKENS_TABLE_NAME":     tables.MagicTokens.Name,
 				"AUDIT_TABLE_NAME":            tables.Audit.Name,
 				"RATE_LIMIT_TABLE_NAME":       tables.RateLimit.Name,
-				"POLICIES_TABLE_NAME":         tables.Policies.Name,
-				"POLICY_REVISIONS_TABLE_NAME": tables.PolicyRevisions.Name,
+				"POLICIES_TABLE_NAME":                 tables.Policies.Name,
+				"POLICY_REVISIONS_TABLE_NAME":         tables.PolicyRevisions.Name,
+				"EMAIL_TEMPLATES_TABLE_NAME":          tables.EmailTemplates.Name,
+				"EMAIL_TEMPLATE_REVISIONS_TABLE_NAME": tables.EmailTemplateRevisions.Name,
+				"ADMIN_INVITATIONS_TABLE_NAME":        tables.AdminInvitations.Name,
 				// SES + base URL — the inactivity sweep emails a restore
 				// link to users about to be auto-deleted.
 				"SES_SENDER_ADDRESS":    pulumi.String(em.SenderAddress),

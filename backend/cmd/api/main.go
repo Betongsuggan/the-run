@@ -52,8 +52,18 @@ func main() {
 	// + store are initialised.
 	sender = audit.WrapSender(sender, recorder, dynStore)
 
+	// Seed default email-template bodies the first time we boot against a
+	// fresh DynamoDB. Idempotent — re-running on a populated DB is a no-op.
+	// Logged failures don't block startup; the renderer falls back to
+	// SeededTemplate at send time if nothing is in the store.
+	email.SeedTemplates(ctx, dynStore)
+
+	// Renderer composes templated emails from the store + falls back to
+	// the in-code seed when DynamoDB has no published row yet.
+	renderer := email.NewRenderer(dynStore, sender)
+
 	mux := http.NewServeMux()
-	api.Register(mux, dynStore, authCfg, sender, recorder)
+	api.Register(mux, dynStore, authCfg, sender, renderer, recorder)
 
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") == "" {
 		addr := ":8080"

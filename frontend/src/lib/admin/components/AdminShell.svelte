@@ -11,6 +11,7 @@
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import Mail from '@lucide/svelte/icons/mail';
 	import { i18n } from '$lib/i18n/state.svelte';
 	import { auth } from '$lib/admin/auth.svelte';
 
@@ -92,6 +93,15 @@
 					>
 						<ScrollText class="size-4" aria-hidden="true" />
 						{i18n.m.admin.nav.policies}
+					</a>
+				</li>
+				<li>
+					<a
+						href={resolve('/admin/email-templates')}
+						class={navClass(isActive(resolve('/admin/email-templates'), false))}
+					>
+						<Mail class="size-4" aria-hidden="true" />
+						{i18n.m.admin.nav.emailTemplates}
 					</a>
 				</li>
 			</ul>

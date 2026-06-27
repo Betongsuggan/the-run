@@ -350,9 +350,18 @@ const sv = {
 		},
 		accept: {
 			heading: 'Acceptera inbjudan',
-			iterationNotice:
-				'Inbjudningsflöde är inte aktivt än. Be administratören att skapa kontot via just create-admin.',
-			backToLogin: 'Till inloggning'
+			backToLogin: 'Till inloggning',
+			passwordLabel: 'Välj ett lösenord',
+			passwordHelp: 'Minst 12 tecken. Använd en lösenordshanterare.',
+			submit: 'Aktivera konto',
+			submitting: 'Aktiverar…',
+			invitationFor: (email: string) => `Inbjudan till ${email}`,
+			invitedBy: (email: string) => `Inbjuden av ${email}`,
+			notFound: 'Den här inbjudan finns inte eller har förfallit. Be administratören skicka en ny.',
+			loading: 'Hämtar inbjudan …',
+			afterAcceptedHeading: 'Klart!',
+			afterAccepted:
+				'Ditt administratörskonto är aktiverat. Logga in på inloggningssidan — du får registrera tvåfaktorsautentisering vid första inloggningen.'
 		},
 		nav: {
 			dashboard: 'Översikt',
@@ -361,6 +370,7 @@ const sv = {
 			results: 'Resultat',
 			users: 'Användare',
 			policies: 'Policyer',
+			emailTemplates: 'E-postmallar',
 			signedInAs: (email: string) => `Inloggad som ${email}`,
 			logout: 'Logga ut',
 			viewPublicSite: 'Visa publik sida'
@@ -466,9 +476,70 @@ const sv = {
 		},
 		users: {
 			heading: 'Adminanvändare',
-			iterationNotice:
-				'Inbjudningsflöde och hantering av flera adminanvändare kommer i en senare iteration. Använd just create-admin från terminalen för att skapa fler administratörer.',
-			currentSession: (email: string) => `Inloggad som ${email}.`
+			description:
+				'Bjud in nya administratörer per e-post. Mottagaren får en magisk länk, sätter sitt eget lösenord och aktiverar tvåfaktorsautentisering vid första inloggningen.',
+			currentSession: (email: string) => `Inloggad som ${email}.`,
+			invite: 'Bjud in administratör',
+			inviteHeading: 'Bjud in administratör',
+			emailLabel: 'E-postadress',
+			localeLabel: 'Språk för inbjudan',
+			localeSv: 'Svenska',
+			localeEn: 'Engelska',
+			sendInvite: 'Skicka inbjudan',
+			sending: 'Skickar…',
+			currentAdminsHeading: 'Aktiva administratörer',
+			pendingInvitesHeading: 'Pågående inbjudningar',
+			noPendingInvites: 'Inga pågående inbjudningar.',
+			columnEmail: 'E-post',
+			columnLocale: 'Språk',
+			columnCreatedAt: 'Skapad',
+			columnLastLogin: 'Senaste inloggning',
+			columnInvitedBy: 'Bjöd in',
+			columnStatus: 'Status',
+			columnExpiresAt: 'Förfaller',
+			statusLabel: (s: string): string =>
+				s === 'pending' ? 'Väntar' : s === 'expired' ? 'Förfallen' : 'Använd',
+			revoke: 'Återkalla',
+			confirmRevoke: (email: string) => `Återkalla inbjudan till ${email}?`,
+			never: 'Aldrig'
+		},
+		emailTemplates: {
+			heading: 'E-postmallar',
+			description:
+				'Redigera ämne och text för varje transaktionsmejl. Mallen för mottagarens språk (svenska eller engelska) skickas baserat på kontots språkinställning.',
+			empty: 'Inga e-postmallar är inlästa än. Starta om backend för att seed:a standardmallarna.',
+			columnName: 'Namn',
+			columnSlug: 'Slug',
+			columnStatus: 'Status',
+			columnRevision: 'Revision',
+			columnUpdated: 'Senast uppdaterad',
+			statusLabel: (s: string): string =>
+				s === 'published' ? 'Publicerad' : s === 'draft' ? 'Utkast' : 'Arkiverad',
+			edit: 'Redigera',
+			editHeading: (name: string) => `Redigera ${name}`,
+			subjectLabel: 'Ämne',
+			bodyLabel: 'Text',
+			tabSv: 'Svenska',
+			tabEn: 'Engelska',
+			tabPreview: 'Förhandsvisning',
+			availableVariables: 'Tillgängliga variabler',
+			availableVariablesHelp:
+				'Använd {{.Variabel}}-syntax i ämne och text. Tomma variabler renderas som tom sträng.',
+			noteLabel: 'Ändringsnotering',
+			notePlaceholder: 't.ex. "Uppdaterad efter feedback från löpare"',
+			noteHelp:
+				'Loggas i revisionshistoriken. Användare ser inte denna text direkt, men den hjälper er hålla ordning.',
+			editingMeta: (slug: string, rev: number) =>
+				`Redigerar ${slug} (revision ${rev}).`,
+			publish: 'Publicera',
+			archive: 'Arkivera',
+			history: 'Historik',
+			historyHeading: (slug: string) => `Historik för ${slug}`,
+			revLive: 'Aktiv vid publicering',
+			revEmpty: 'Inga revisioner ännu.',
+			confirmPublish: (slug: string) => `Publicera ${slug}? Nya utskick använder den nya texten direkt.`,
+			confirmArchive: (slug: string) =>
+				`Arkivera ${slug}? Tills mallen publiceras igen återgår systemet till inbyggda standardtexter.`
 		},
 		policies: {
 			heading: 'Sekretesspolicy',
@@ -888,9 +959,18 @@ const en: Catalog = {
 		},
 		accept: {
 			heading: 'Accept invitation',
-			iterationNotice:
-				'Invitation flow is not active yet. Ask the admin to create the account using just create-admin.',
-			backToLogin: 'Back to sign-in'
+			backToLogin: 'Back to sign-in',
+			passwordLabel: 'Choose a password',
+			passwordHelp: 'At least 12 characters. Use a password manager.',
+			submit: 'Activate account',
+			submitting: 'Activating…',
+			invitationFor: (email: string) => `Invitation for ${email}`,
+			invitedBy: (email: string) => `Invited by ${email}`,
+			notFound: 'This invitation does not exist or has expired. Ask the admin to send a new one.',
+			loading: 'Loading invitation …',
+			afterAcceptedHeading: 'Done!',
+			afterAccepted:
+				'Your administrator account is active. Sign in on the login page — you will enroll two-factor authentication on first sign-in.'
 		},
 		nav: {
 			dashboard: 'Overview',
@@ -899,6 +979,7 @@ const en: Catalog = {
 			results: 'Results',
 			users: 'Users',
 			policies: 'Policies',
+			emailTemplates: 'Email templates',
 			signedInAs: (email: string) => `Signed in as ${email}`,
 			logout: 'Sign out',
 			viewPublicSite: 'View public site'
@@ -1005,9 +1086,70 @@ const en: Catalog = {
 		},
 		users: {
 			heading: 'Admin users',
-			iterationNotice:
-				'Invitation flow and multi-admin management is a later iteration. Use just create-admin from the terminal to add more administrators.',
-			currentSession: (email: string) => `Signed in as ${email}.`
+			description:
+				'Invite new admins by email. The recipient gets a magic link, sets their own password, and enrolls TOTP on first sign-in.',
+			currentSession: (email: string) => `Signed in as ${email}.`,
+			invite: 'Invite admin',
+			inviteHeading: 'Invite admin',
+			emailLabel: 'Email address',
+			localeLabel: 'Invitation language',
+			localeSv: 'Swedish',
+			localeEn: 'English',
+			sendInvite: 'Send invitation',
+			sending: 'Sending…',
+			currentAdminsHeading: 'Active admins',
+			pendingInvitesHeading: 'Pending invitations',
+			noPendingInvites: 'No pending invitations.',
+			columnEmail: 'Email',
+			columnLocale: 'Language',
+			columnCreatedAt: 'Created',
+			columnLastLogin: 'Last login',
+			columnInvitedBy: 'Invited by',
+			columnStatus: 'Status',
+			columnExpiresAt: 'Expires',
+			statusLabel: (s: string): string =>
+				s === 'pending' ? 'Pending' : s === 'expired' ? 'Expired' : 'Used',
+			revoke: 'Revoke',
+			confirmRevoke: (email: string) => `Revoke invitation for ${email}?`,
+			never: 'Never'
+		},
+		emailTemplates: {
+			heading: 'Email templates',
+			description:
+				'Edit the subject and body of every transactional email. The recipient locale (Swedish or English) is picked based on the account\'s language preference.',
+			empty: 'No email templates loaded yet. Restart the backend to seed the defaults.',
+			columnName: 'Name',
+			columnSlug: 'Slug',
+			columnStatus: 'Status',
+			columnRevision: 'Revision',
+			columnUpdated: 'Last updated',
+			statusLabel: (s: string): string =>
+				s === 'published' ? 'Published' : s === 'draft' ? 'Draft' : 'Archived',
+			edit: 'Edit',
+			editHeading: (name: string) => `Edit ${name}`,
+			subjectLabel: 'Subject',
+			bodyLabel: 'Body',
+			tabSv: 'Swedish',
+			tabEn: 'English',
+			tabPreview: 'Preview',
+			availableVariables: 'Available variables',
+			availableVariablesHelp:
+				'Use {{.Variable}} syntax in the subject and body. Empty variables render as an empty string.',
+			noteLabel: 'Change note',
+			notePlaceholder: 'e.g. "Updated after runner feedback"',
+			noteHelp:
+				'Logged in the revision history. Users do not see this directly, but it helps you track changes.',
+			editingMeta: (slug: string, rev: number) => `Editing ${slug} (revision ${rev}).`,
+			publish: 'Publish',
+			archive: 'Archive',
+			history: 'History',
+			historyHeading: (slug: string) => `History for ${slug}`,
+			revLive: 'Live at publish time',
+			revEmpty: 'No revisions yet.',
+			confirmPublish: (slug: string) =>
+				`Publish ${slug}? New sends will use the updated text immediately.`,
+			confirmArchive: (slug: string) =>
+				`Archive ${slug}? Until it is published again the system falls back to the built-in defaults.`
 		},
 		policies: {
 			heading: 'Privacy policy',

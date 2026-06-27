@@ -112,3 +112,57 @@ export type PolicyRevision = {
 	note?: string;
 	published: boolean;
 };
+
+// Admin-editable email template. The slug discriminates which send site
+// uses this body (e.g. "guardian-consent", "admin-invite"); the set of
+// slugs is fixed in the backend.
+export type EmailTemplateStatus = 'draft' | 'published' | 'archived';
+
+export type EmailTemplate = {
+	slug: string;
+	displayName: string;
+	status: EmailTemplateStatus;
+	revision: number;
+	subjectSv: string;
+	bodySv: string;
+	subjectEn: string;
+	bodyEn: string;
+	availableVariables: string[];
+	updatedAt?: string;
+	publishedAt?: string;
+};
+
+export type EmailTemplateRevision = {
+	slug: string;
+	revision: number;
+	subjectSv: string;
+	bodySv: string;
+	subjectEn: string;
+	bodyEn: string;
+	editedAt: string;
+	note?: string;
+	published: boolean;
+};
+
+// Admin account projection for /admin/users. PasswordHash + MFASecret are
+// never sent over the wire.
+export type AdminAccount = {
+	id: ID;
+	email: string;
+	locale?: string;
+	createdAt?: string;
+	lastLoginAt?: string;
+};
+
+// Pending or recently-used admin invitation row. `status` is derived
+// server-side from the row state (used / expired / pending).
+export type AdminInvitation = {
+	tokenId: string;
+	email: string;
+	locale?: string;
+	invitedByMail?: string;
+	status: 'pending' | 'expired' | 'used';
+	createdAt: string;
+	expiresAt: string;
+	usedAt?: string;
+};

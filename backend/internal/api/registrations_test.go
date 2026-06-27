@@ -73,6 +73,13 @@ func (f *fakeStore) GetEvent(_ context.Context, id string) (*models.Event, error
 	return nil, store.ErrNotFound
 }
 
+// GetEmailTemplate returns "no published row" so the renderer falls back to
+// the in-code seed bodies — under-13 registration tests then hit the same
+// templating path production uses without needing a DynamoDB.
+func (f *fakeStore) GetEmailTemplate(_ context.Context, _ models.EmailTemplateSlug) (*models.EmailTemplate, error) {
+	return nil, nil
+}
+
 func (f *fakeStore) CreateMagicToken(_ context.Context, t models.MagicToken) error {
 	if _, exists := f.magicTokens[t.ID]; exists {
 		return store.ErrAlreadyExists
@@ -129,8 +136,11 @@ func (f *fakeStore) CreateRegistration(_ context.Context, r models.Registration)
 func buildTestAPI(t *testing.T, s store.Store) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t, huma.DefaultConfig("test", "0.0.0"))
-	// NoOp email sender so under-13 paths don't try to hit AWS.
-	registerRegistrations(api, s, email.NoOpSender{})
+	// NoOp underlying sender + renderer that falls back to in-code seed
+	// bodies (fakeStore.GetEmailTemplate returns nil) so under-13 paths
+	// exercise the same templating code production uses without hitting AWS.
+	renderer := email.NewRenderer(s, email.NoOpSender{})
+	registerRegistrations(api, s, renderer)
 	return api
 }
 

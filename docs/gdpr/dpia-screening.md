@@ -19,7 +19,7 @@ Inget tredjepartsverktyg för spårning, ingen profilering, inga särskilda kate
 
 Följande personuppgiftskategorier behandlas, härledda från `gdpr:`-taggar på modellfält:
 
-- **Kontaktuppgifter:** `Account.Email`
+- **Kontaktuppgifter:** `Account.Email`, `AdminInvitation.Email`, `AdminInvitation.InvitedByMail`
 - **Identifierande uppgifter:** `Registration.RunnerID`, `Runner.BirthDate`, `Runner.Gender`, `Runner.Name`
 - **Inloggningsuppgifter:** `Account.MFASecret`, `Account.PasswordHash`, `MagicToken.ID`
 - **Beteendedata:** `Registration.Bib`, `Registration.FinishSeconds`, `Registration.Splits`

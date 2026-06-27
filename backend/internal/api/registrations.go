@@ -23,6 +23,14 @@ import (
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
 
+// guardianConsentVars is the template variable struct for the
+// guardian-consent email. Field names line up with `{{.RunnerName}}` /
+// `{{.Link}}` placeholders in templates/seed.go.
+type guardianConsentVars struct {
+	RunnerName string
+	Link       string
+}
+
 // Per-IP rate limit on POST /registrations (GDPR A0.7). Pair the honeypot
 // (form-level) and the API Gateway stage throttle (aggregate) with a
 // sliding 1-minute window per source IP. Numbers match the plan: 5 attempts
@@ -82,7 +90,7 @@ type RegisterOutput struct {
 	}
 }
 
-func registerRegistrations(api huma.API, s store.Store, sender email.Sender) {
+func registerRegistrations(api huma.API, s store.Store, renderer *email.Renderer) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "register-for-race",
 		Method:        "POST",
@@ -294,7 +302,7 @@ func registerRegistrations(api huma.API, s store.Store, sender email.Sender) {
 			if err := s.CreateMagicToken(ctx, token); err != nil {
 				return nil, fmt.Errorf("store guardian token: %w", err)
 			}
-			if err := sendGuardianConsentEmail(ctx, sender, normalizedEmail, runner.Name, tokenID); err != nil {
+			if err := sendGuardianConsentEmail(ctx, renderer, normalizedEmail, account.Locale, runner.Name, tokenID); err != nil {
 				// Don't fail the request — the registration is real and the
 				// admin can re-send. Log so we notice in CloudWatch.
 				log.Printf("guardian consent email failed: registrationId=%s tokenId=%s err=%v", reg.ID, tokenID, err)
@@ -336,24 +344,23 @@ func newConsentTokenID() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// sendGuardianConsentEmail composes the magic-link message and hands it to
-// the configured Sender. Body is Swedish-only for now (matches the brand
-// language); add an en variant alongside Locale-aware account data later.
-func sendGuardianConsentEmail(ctx context.Context, sender email.Sender, toEmail, runnerName, tokenID string) error {
+// sendGuardianConsentEmail composes the magic-link message via the template
+// renderer. Locale is the registering account's preferred language (see
+// account.Locale); guardian recipients without an existing account fall back
+// to Swedish in the renderer.
+func sendGuardianConsentEmail(ctx context.Context, renderer *email.Renderer, toEmail, locale, runnerName, tokenID string) error {
 	base := os.Getenv("SITE_BASE_URL")
 	if base == "" {
 		base = "https://running.rydback.net"
 	}
 	link := base + "/guardian-consent?token=" + tokenID
-	body := "Hej!\n\n" +
-		"Du har registrerat " + runnerName + " till ett lopp på Ingmarsöloppet. Eftersom hen är under 13 år behöver vi en målsmans samtycke innan anmälan blir aktiv.\n\n" +
-		"Klicka på länken nedan för att bekräfta inom 7 dagar — annars förfaller anmälan automatiskt:\n\n" +
-		link + "\n\n" +
-		"Om du inte gjort den här anmälan kan du bortse från det här mejlet; ingenting registreras förrän du klickat på länken.\n"
-	return sender.Send(ctx, email.Message{
-		To:         toEmail,
-		Subject:    "Bekräfta målsmans samtycke — Ingmarsöloppet",
-		TextBody:   body,
-		MessageTag: "guardian-consent",
+	return renderer.Send(ctx, email.SendOptions{
+		Slug:   models.EmailTemplateSlugGuardianConsent,
+		To:     toEmail,
+		Locale: locale,
+		Vars: guardianConsentVars{
+			RunnerName: runnerName,
+			Link:       link,
+		},
 	})
 }

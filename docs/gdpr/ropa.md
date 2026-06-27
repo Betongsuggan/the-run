@@ -119,6 +119,9 @@ Aktivitetslogg — admin- och DSR-händelser för spårbarhet och utredning av i
 | `the-run-rate-limit` | ✓ | – | `expiresAt` | Korta IP-räknare för bot-skydd vid anmälan — auto-rensas via TTL. |
 | `the-run-policies` | ✓ | ✓ | – | Versionerade sekretesspolicyer. |
 | `the-run-policy-revisions` | ✓ | – | – | Bevarade tidigare versioner av policyer (snapshots). |
+| `the-run-email-templates` | ✓ | ✓ | – | Versionerade textinnehåll för transaktionsmejl (kvitton, magic links). |
+| `the-run-email-template-revisions` | ✓ | – | – | Bevarade tidigare versioner av mejlmallar (snapshots). |
+| `the-run-admin-invitations` | ✓ | – | `expiresAt` | Pågående administratörsinbjudningar (e-post + hashad engångstoken) — auto-rensas via TTL efter 7 dagar. |
 
 ## Tekniska och organisatoriska säkerhetsåtgärder
 

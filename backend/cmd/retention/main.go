@@ -84,6 +84,7 @@ func handler(ctx context.Context) error {
 		return err
 	}
 	log.Printf("retention: email sender initialised (ses=%t)", ses)
+	renderer := email.NewRenderer(s, sender)
 	now := time.Now().UTC()
 
 	// DSR-driven soft-delete sweeps — anything past its 30-day grace
@@ -106,7 +107,7 @@ func handler(ctx context.Context) error {
 	if err := sweepNonFinishedRegistrations(ctx, s, now); err != nil {
 		log.Printf("retention: sweepNonFinishedRegistrations errored: %v", err)
 	}
-	if err := sweepInactiveAccounts(ctx, s, recorder, sender, now); err != nil {
+	if err := sweepInactiveAccounts(ctx, s, recorder, renderer, now); err != nil {
 		log.Printf("retention: sweepInactiveAccounts errored: %v", err)
 	}
 	if n, err := recorder.PurgeBefore(ctx, now.AddDate(0, -auditLogWindow, 0)); err != nil {
@@ -374,7 +375,7 @@ func sweepInactiveAccounts(
 	ctx context.Context,
 	s store.Store,
 	recorder audit.Recorder,
-	sender email.Sender,
+	renderer *email.Renderer,
 	now time.Time,
 ) error {
 	threshold := now.AddDate(0, -accountInactivityWindow, 0)
@@ -403,7 +404,7 @@ func sweepInactiveAccounts(
 			continue
 		}
 		until := now.Add(inactivityDeletionGrace)
-		if err := issueInactivityRestoreLink(ctx, s, sender, a, until); err != nil {
+		if err := issueInactivityRestoreLink(ctx, s, renderer, a, until); err != nil {
 			// Don't roll back the soft-delete — the user gets paged via
 			// their next /my-data login (we already wrote the audit row
 			// they can see there), and the next sweep won't re-page
@@ -513,7 +514,7 @@ func cascadeRegistrations(ctx context.Context, s store.Store, runnerID string) e
 // issueInactivityRestoreLink mints a dsr_restore token and emails the
 // inactivity notice (different copy from a user-initiated deletion: the
 // user didn't ask, we're the ones flagging it).
-func issueInactivityRestoreLink(ctx context.Context, s store.Store, sender email.Sender, a models.Account, until time.Time) error {
+func issueInactivityRestoreLink(ctx context.Context, s store.Store, renderer *email.Renderer, a models.Account, until time.Time) error {
 	tokenID, err := newRetentionTokenID()
 	if err != nil {
 		return err
@@ -528,7 +529,7 @@ func issueInactivityRestoreLink(ctx context.Context, s store.Store, sender email
 	if err := s.CreateMagicToken(ctx, token); err != nil {
 		return err
 	}
-	return sendInactivityNoticeEmail(ctx, sender, a.Email, tokenID, until)
+	return sendInactivityNoticeEmail(ctx, renderer, a.Email, a.Locale, tokenID, until)
 }
 
 func newRetentionTokenID() (string, error) {
@@ -539,27 +540,26 @@ func newRetentionTokenID() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
+// retentionInactivityVars matches the {{.DeletionDate}} / {{.Link}}
+// placeholders in the retention-inactivity template.
+type retentionInactivityVars struct {
+	Link         string
+	DeletionDate string
+}
+
 // sendInactivityNoticeEmail tells the user we're about to delete their data
 // because they haven't logged in / registered / raced in 36 months, and
 // offers the same restore-link flow used for user-initiated deletes.
-func sendInactivityNoticeEmail(ctx context.Context, sender email.Sender, toEmail, tokenID string, deletionAt time.Time) error {
+func sendInactivityNoticeEmail(ctx context.Context, renderer *email.Renderer, toEmail, locale, tokenID string, deletionAt time.Time) error {
 	base := os.Getenv("SITE_BASE_URL")
 	if base == "" {
 		base = "https://running.rydback.net"
 	}
 	link := base + "/my-data/restore?token=" + tokenID
-	body := "Hej!\n\n" +
-		"Du har inte använt ditt konto hos Ingmarsöloppet på över 36 månader. " +
-		"Enligt vår dataskyddspolicy tar vi automatiskt bort konton som varit inaktiva så länge.\n\n" +
-		"Dina uppgifter raderas slutgiltigt den " + deletionAt.Format("2006-01-02") + ". " +
-		"Fram till dess är de dolda men kan återställas.\n\n" +
-		"Klicka på länken nedan om du vill behålla ditt konto:\n\n" +
-		link + "\n\n" +
-		"Vill du inte behålla det? Gör inget — uppgifterna raderas automatiskt på utsatt datum.\n"
-	return sender.Send(ctx, email.Message{
-		To:         toEmail,
-		Subject:    "Inaktivt konto — dina uppgifter raderas snart — Ingmarsöloppet",
-		TextBody:   body,
-		MessageTag: "retention-inactivity",
+	return renderer.Send(ctx, email.SendOptions{
+		Slug:   models.EmailTemplateSlugRetentionInactivity,
+		To:     toEmail,
+		Locale: locale,
+		Vars:   retentionInactivityVars{Link: link, DeletionDate: deletionAt.Format("2006-01-02")},
 	})
 }

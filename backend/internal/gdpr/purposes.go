@@ -169,4 +169,12 @@ var Purposes = map[string]Purpose{
 		Subjects:  []DataSubject{SubjectRunner, SubjectGuardian, SubjectAdmin},
 		Retention: "audit-24mo",
 	},
+	"admin-invite": {
+		Key:       "admin-invite",
+		DescSv:    "Inbjudningar av nya administratörer — engångslänk via e-post, TTL 7 dagar.",
+		DescEn:    "Invitations of new administrators — one-shot email magic link, TTL 7 days.",
+		Basis:     BasisLegitimateInterest,
+		Subjects:  []DataSubject{SubjectAdmin},
+		Retention: "magic-token-short",
+	},
 }

@@ -33,6 +33,10 @@ var ErrNoPublishedPolicy = errors.New("no published privacy policy")
 // archived). API layer maps this to HTTP 409.
 var ErrInvalidPolicyState = errors.New("policy is not in the required state for this transition")
 
+// ErrInvalidEmailTemplateState mirrors ErrInvalidPolicyState for the email
+// template lifecycle. API layer maps to HTTP 409.
+var ErrInvalidEmailTemplateState = errors.New("email template is not in the required state for this transition")
+
 // RegistrationUpdate carries the optional fields a bulk/single update can
 // modify. nil fields are left unchanged; pointer-typed numeric fields use
 // the zero pointer to mean "clear", as DynamoDB UpdateItem REMOVE.
@@ -158,4 +162,34 @@ type Store interface {
 	ListPolicies(ctx context.Context) ([]models.Policy, error)
 	GetPolicyRevision(ctx context.Context, policyID string, revision int) (*models.PolicyRevision, error)
 	ListPolicyRevisions(ctx context.Context, policyID string) ([]models.PolicyRevision, error)
+
+	// Email templates — admin-editable copy for every transactional email
+	// (guardian consent, DSR access/email-change/restore, retention
+	// inactivity, admin invite). Slug is the primary key; the set is fixed
+	// in code (models.KnownEmailTemplateSlugs). CreateEmailTemplate is used
+	// only by the seed routine on first boot; admins edit drafts and
+	// published bodies via UpdateEmailTemplateDraft / EditPublishedEmail
+	// Template. Renderer (internal/email) reads the published row at send
+	// time and substitutes variables.
+	CreateEmailTemplate(ctx context.Context, t models.EmailTemplate) error
+	UpdateEmailTemplateDraft(ctx context.Context, slug models.EmailTemplateSlug, subjectSv, bodySv, subjectEn, bodyEn, editor string) error
+	EditPublishedEmailTemplate(ctx context.Context, slug models.EmailTemplateSlug, subjectSv, bodySv, subjectEn, bodyEn, editor, note string) (newRevision int, err error)
+	PublishEmailTemplate(ctx context.Context, slug models.EmailTemplateSlug, publisher string, at time.Time) error
+	ArchiveEmailTemplate(ctx context.Context, slug models.EmailTemplateSlug) error
+	GetEmailTemplate(ctx context.Context, slug models.EmailTemplateSlug) (*models.EmailTemplate, error)
+	ListEmailTemplates(ctx context.Context) ([]models.EmailTemplate, error)
+	ListEmailTemplateRevisions(ctx context.Context, slug models.EmailTemplateSlug) ([]models.EmailTemplateRevision, error)
+
+	// Admin invitations — token-backed records issued when an existing
+	// admin invites a new one by email. Token IDs are stored hashed; the
+	// raw token only lives in the magic link emailed to the recipient.
+	// CreateAdminInvitation returns ErrAlreadyExists on tokenId collision
+	// (effectively impossible with random IDs). MarkAdminInvitationUsed
+	// returns ErrAlreadyExists if the token was used in a concurrent
+	// request.
+	CreateAdminInvitation(ctx context.Context, inv models.AdminInvitation) error
+	GetAdminInvitationByTokenHash(ctx context.Context, tokenHash string) (*models.AdminInvitation, error)
+	ListAdminInvitations(ctx context.Context) ([]models.AdminInvitation, error)
+	MarkAdminInvitationUsed(ctx context.Context, tokenHash string, at time.Time) error
+	DeleteAdminInvitation(ctx context.Context, tokenHash string) error
 }

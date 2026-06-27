@@ -17,6 +17,7 @@ func Register(
 	s store.Store,
 	authCfg auth.Config,
 	sender email.Sender,
+	renderer *email.Renderer,
 	recorder audit.Recorder,
 ) huma.API {
 	config := huma.DefaultConfig("The Run API", "0.0.1")
@@ -24,16 +25,18 @@ func Register(
 
 	registerHello(api)
 	registerAuth(api, s, authCfg)
-	registerRegistrations(api, s, sender)
+	registerRegistrations(api, s, renderer)
 	registerEvents(api, s, authCfg)
 	registerRaces(api, s, authCfg)
 	registerRunners(api, s, authCfg)
 	registerAdminRegistrations(api, s, authCfg, recorder)
 	registerResults(api, s, authCfg)
 	registerGuardianConsent(api, s)
-	registerDSR(api, s, authCfg, sender, recorder)
+	registerDSR(api, s, authCfg, renderer, recorder)
 	registerPolicies(api, s)
 	registerAdminPolicies(api, s, authCfg, recorder)
+	registerAdminEmailTemplates(api, s, authCfg, recorder)
+	registerAdminUsers(api, s, authCfg, renderer, recorder)
 
 	return api
 }

@@ -228,7 +228,7 @@ type dsrConfirmEmailChangeOutput struct {
 
 // ── Registration ──────────────────────────────────────────────────────────
 
-func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.Sender, recorder audit.Recorder) {
+func registerDSR(api huma.API, s store.Store, authCfg auth.Config, renderer *email.Renderer, recorder audit.Recorder) {
 	dsrMW := huma.Middlewares{auth.RequireDSRSession(authCfg)}
 
 	huma.Register(api, huma.Operation{
@@ -282,7 +282,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := s.CreateMagicToken(ctx, token); err != nil {
 			return nil, fmt.Errorf("store dsr token: %w", err)
 		}
-		if err := sendDSRAccessEmail(ctx, sender, normalized, tokenID); err != nil {
+		if err := sendDSRAccessEmail(ctx, renderer, normalized, account.Locale, tokenID); err != nil {
 			// IDs only — never the email or the token in CloudWatch.
 			log.Printf("dsr access email failed: accountId=%s tokenId=%s err=%v", account.ID, tokenID, err)
 			// Best-effort: still return OK so a flaky SES doesn't reveal
@@ -672,7 +672,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := s.CreateMagicToken(ctx, token); err != nil {
 			return nil, fmt.Errorf("store email-change token: %w", err)
 		}
-		if err := sendEmailChangeConfirmation(ctx, sender, normalizedNew, tokenID); err != nil {
+		if err := sendEmailChangeConfirmation(ctx, renderer, normalizedNew, account.Locale, tokenID); err != nil {
 			log.Printf("email change confirmation send failed: accountId=%s tokenId=%s err=%v", account.ID, tokenID, err)
 		}
 		return out, nil
@@ -782,7 +782,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := cascadePendingDeletion(ctx, s, runner.ID, now); err != nil {
 			return nil, err
 		}
-		if err := issueRestoreLink(ctx, s, sender, accountID, until); err != nil {
+		if err := issueRestoreLink(ctx, s, renderer, accountID, until); err != nil {
 			log.Printf("dsr restore link send failed: accountId=%s err=%v", accountID, err)
 		}
 		recorder.Record(ctx, models.AuditRow{
@@ -839,7 +839,7 @@ func registerDSR(api huma.API, s store.Store, authCfg auth.Config, sender email.
 		if err := s.UpdateAccount(ctx, *account); err != nil {
 			return nil, fmt.Errorf("mark account pending deletion: %w", err)
 		}
-		if err := issueRestoreLink(ctx, s, sender, accountID, until); err != nil {
+		if err := issueRestoreLink(ctx, s, renderer, accountID, until); err != nil {
 			log.Printf("dsr restore link send failed: accountId=%s err=%v", accountID, err)
 		}
 		recorder.Record(ctx, models.AuditRow{
@@ -1063,7 +1063,7 @@ func uncascadePendingDeletion(ctx context.Context, s store.Store, runnerID strin
 
 // issueRestoreLink mints a dsr_restore magic token and emails the undo link
 // to the account's email (which is still on file during the grace window).
-func issueRestoreLink(ctx context.Context, s store.Store, sender email.Sender, accountID string, until time.Time) error {
+func issueRestoreLink(ctx context.Context, s store.Store, renderer *email.Renderer, accountID string, until time.Time) error {
 	account, err := s.GetAccountByID(ctx, accountID)
 	if err != nil {
 		return fmt.Errorf("get account for restore link: %w", err)
@@ -1083,7 +1083,7 @@ func issueRestoreLink(ctx context.Context, s store.Store, sender email.Sender, a
 	if err := s.CreateMagicToken(ctx, token); err != nil {
 		return fmt.Errorf("store restore token: %w", err)
 	}
-	return sendDSRRestoreEmail(ctx, sender, account.Email, tokenID, until)
+	return sendDSRRestoreEmail(ctx, renderer, account.Email, account.Locale, tokenID, until)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1385,46 +1385,49 @@ func boolSummary(field string, v bool) string {
 	return field + ": disabled"
 }
 
-// sendDSRAccessEmail composes the magic-link email and hands it to the
-// configured Sender. Swedish body; the user can switch locales once we wire
-// account.Locale through the sender (future slice).
-func sendDSRAccessEmail(ctx context.Context, sender email.Sender, toEmail, tokenID string) error {
+// dsrLinkVars matches `{{.Link}}` placeholders shared by dsr-access and
+// dsr-email-change templates.
+type dsrLinkVars struct {
+	Link string
+}
+
+// dsrRestoreVars carries the deletion date alongside the restore link for
+// dsr-restore and retention-inactivity templates.
+type dsrRestoreVars struct {
+	Link         string
+	DeletionDate string
+}
+
+// sendDSRAccessEmail composes the magic-link email via the template renderer.
+// Locale is the account's preferred language (account.Locale).
+func sendDSRAccessEmail(ctx context.Context, renderer *email.Renderer, toEmail, locale, tokenID string) error {
 	base := os.Getenv("SITE_BASE_URL")
 	if base == "" {
 		base = "https://running.rydback.net"
 	}
 	link := base + "/my-data?token=" + tokenID
-	body := "Hej!\n\n" +
-		"Du har begärt att hantera dina uppgifter hos Ingmarsöloppet. Klicka på länken nedan inom 30 minuter för att logga in:\n\n" +
-		link + "\n\n" +
-		"Om du inte begärt det här mejlet kan du bortse från det.\n"
-	return sender.Send(ctx, email.Message{
-		To:         toEmail,
-		Subject:    "Hantera dina uppgifter — Ingmarsöloppet",
-		TextBody:   body,
-		MessageTag: "dsr-access",
+	return renderer.Send(ctx, email.SendOptions{
+		Slug:   models.EmailTemplateSlugDSRAccess,
+		To:     toEmail,
+		Locale: locale,
+		Vars:   dsrLinkVars{Link: link},
 	})
 }
 
 // sendEmailChangeConfirmation sends the verification link to the NEW address.
 // Crucially: the receiver of this email is the proof of ownership. Clicking
 // the link is what authorises the swap.
-func sendEmailChangeConfirmation(ctx context.Context, sender email.Sender, newEmail, tokenID string) error {
+func sendEmailChangeConfirmation(ctx context.Context, renderer *email.Renderer, newEmail, locale, tokenID string) error {
 	base := os.Getenv("SITE_BASE_URL")
 	if base == "" {
 		base = "https://running.rydback.net"
 	}
 	link := base + "/my-data/confirm-email?token=" + tokenID
-	body := "Hej!\n\n" +
-		"En begäran har gjorts att byta e-postadress till den här adressen på Ingmarsöloppet. " +
-		"Klicka på länken nedan inom 24 timmar för att bekräfta:\n\n" +
-		link + "\n\n" +
-		"Om du inte gjort den här begäran kan du bortse från mejlet — inget händer förrän du klickat på länken.\n"
-	return sender.Send(ctx, email.Message{
-		To:         newEmail,
-		Subject:    "Bekräfta din nya e-postadress — Ingmarsöloppet",
-		TextBody:   body,
-		MessageTag: "dsr-email-change",
+	return renderer.Send(ctx, email.SendOptions{
+		Slug:   models.EmailTemplateSlugDSREmailChange,
+		To:     newEmail,
+		Locale: locale,
+		Vars:   dsrLinkVars{Link: link},
 	})
 }
 
@@ -1432,23 +1435,16 @@ func sendEmailChangeConfirmation(ctx context.Context, sender email.Sender, newEm
 // deletion and gives them the magic link to undo. Sent the moment a
 // /dsr/me/runners/{id} or /dsr/me DELETE lands, and also re-issued whenever
 // they hit /dsr/request-link while their account is in the grace window.
-func sendDSRRestoreEmail(ctx context.Context, sender email.Sender, toEmail, tokenID string, deletionAt time.Time) error {
+func sendDSRRestoreEmail(ctx context.Context, renderer *email.Renderer, toEmail, locale, tokenID string, deletionAt time.Time) error {
 	base := os.Getenv("SITE_BASE_URL")
 	if base == "" {
 		base = "https://running.rydback.net"
 	}
 	link := base + "/my-data/restore?token=" + tokenID
-	body := "Hej!\n\n" +
-		"Vi har tagit emot din begäran om att radera dina uppgifter hos Ingmarsöloppet.\n\n" +
-		"Uppgifterna raderas slutgiltigt den " + deletionAt.Format("2006-01-02") + ". " +
-		"Fram till dess är de dolda men kan återställas.\n\n" +
-		"Klicka på länken nedan om du ångrar dig och vill behålla dina uppgifter:\n\n" +
-		link + "\n\n" +
-		"Behöver du ingen ångerlucka? Gör inget — uppgifterna raderas automatiskt på utsatt datum.\n"
-	return sender.Send(ctx, email.Message{
-		To:         toEmail,
-		Subject:    "Dina uppgifter raderas snart — Ingmarsöloppet",
-		TextBody:   body,
-		MessageTag: "dsr-restore",
+	return renderer.Send(ctx, email.SendOptions{
+		Slug:   models.EmailTemplateSlugDSRRestore,
+		To:     toEmail,
+		Locale: locale,
+		Vars:   dsrRestoreVars{Link: link, DeletionDate: deletionAt.Format("2006-01-02")},
 	})
 }

@@ -35,6 +35,9 @@ Tabeller med automatisk TTL får raderna automatiskt borttagna av DynamoDB. Övr
 | `the-run-rate-limit` | `expiresAt` | – | DynamoDB TTL (automatiskt) |
 | `the-run-policies` | – | ✓ | retention-Lambda + DSR-flöde |
 | `the-run-policy-revisions` | – | – | retention-Lambda + DSR-flöde |
+| `the-run-email-templates` | – | ✓ | retention-Lambda + DSR-flöde |
+| `the-run-email-template-revisions` | – | – | retention-Lambda + DSR-flöde |
+| `the-run-admin-invitations` | `expiresAt` | – | DynamoDB TTL (automatiskt) |
 
 ## Lagringskedjan från löparens perspektiv
 

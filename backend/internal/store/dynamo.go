@@ -27,17 +27,20 @@ const (
 )
 
 type DynamoStore struct {
-	client                 *dynamodb.Client
-	runnersTable           string
-	registrationsTable     string
-	eventsTable            string
-	racesTable             string
-	accountsTable          string
-	authAttemptsTable      string
-	magicTokensTable       string
-	rateLimitTable         string
-	policiesTable          string
-	policyRevisionsTable   string
+	client                      *dynamodb.Client
+	runnersTable                string
+	registrationsTable          string
+	eventsTable                 string
+	racesTable                  string
+	accountsTable               string
+	authAttemptsTable           string
+	magicTokensTable            string
+	rateLimitTable              string
+	policiesTable               string
+	policyRevisionsTable        string
+	emailTemplatesTable         string
+	emailTemplateRevisionsTable string
+	adminInvitationsTable       string
 }
 
 // NewDynamoStoreFromEnv reads RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME,
@@ -55,8 +58,11 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	rateLimitTable := os.Getenv("RATE_LIMIT_TABLE_NAME")
 	policiesTable := os.Getenv("POLICIES_TABLE_NAME")
 	policyRevisionsTable := os.Getenv("POLICY_REVISIONS_TABLE_NAME")
-	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || magicTokensTable == "" || rateLimitTable == "" || policiesTable == "" || policyRevisionsTable == "" {
-		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, MAGIC_TOKENS_TABLE_NAME, RATE_LIMIT_TABLE_NAME, POLICIES_TABLE_NAME, POLICY_REVISIONS_TABLE_NAME must all be set")
+	emailTemplatesTable := os.Getenv("EMAIL_TEMPLATES_TABLE_NAME")
+	emailTemplateRevisionsTable := os.Getenv("EMAIL_TEMPLATE_REVISIONS_TABLE_NAME")
+	adminInvitationsTable := os.Getenv("ADMIN_INVITATIONS_TABLE_NAME")
+	if runnersTable == "" || registrationsTable == "" || eventsTable == "" || racesTable == "" || accountsTable == "" || authAttemptsTable == "" || magicTokensTable == "" || rateLimitTable == "" || policiesTable == "" || policyRevisionsTable == "" || emailTemplatesTable == "" || emailTemplateRevisionsTable == "" || adminInvitationsTable == "" {
+		return nil, errors.New("RUNNERS_TABLE_NAME, REGISTRATIONS_TABLE_NAME, EVENTS_TABLE_NAME, RACES_TABLE_NAME, ACCOUNTS_TABLE_NAME, AUTH_ATTEMPTS_TABLE_NAME, MAGIC_TOKENS_TABLE_NAME, RATE_LIMIT_TABLE_NAME, POLICIES_TABLE_NAME, POLICY_REVISIONS_TABLE_NAME, EMAIL_TEMPLATES_TABLE_NAME, EMAIL_TEMPLATE_REVISIONS_TABLE_NAME, ADMIN_INVITATIONS_TABLE_NAME must all be set")
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
@@ -72,17 +78,20 @@ func NewDynamoStoreFromEnv(ctx context.Context) (*DynamoStore, error) {
 	}
 
 	return &DynamoStore{
-		client:               dynamodb.NewFromConfig(cfg, optFns...),
-		runnersTable:         runnersTable,
-		registrationsTable:   registrationsTable,
-		eventsTable:          eventsTable,
-		racesTable:           racesTable,
-		accountsTable:        accountsTable,
-		authAttemptsTable:    authAttemptsTable,
-		magicTokensTable:     magicTokensTable,
-		rateLimitTable:       rateLimitTable,
-		policiesTable:        policiesTable,
-		policyRevisionsTable: policyRevisionsTable,
+		client:                      dynamodb.NewFromConfig(cfg, optFns...),
+		runnersTable:                runnersTable,
+		registrationsTable:          registrationsTable,
+		eventsTable:                 eventsTable,
+		racesTable:                  racesTable,
+		accountsTable:               accountsTable,
+		authAttemptsTable:           authAttemptsTable,
+		magicTokensTable:            magicTokensTable,
+		rateLimitTable:              rateLimitTable,
+		policiesTable:               policiesTable,
+		policyRevisionsTable:        policyRevisionsTable,
+		emailTemplatesTable:         emailTemplatesTable,
+		emailTemplateRevisionsTable: emailTemplateRevisionsTable,
+		adminInvitationsTable:       adminInvitationsTable,
 	}, nil
 }
 

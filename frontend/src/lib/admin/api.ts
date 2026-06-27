@@ -1,6 +1,10 @@
 import { api } from '$lib/http';
 import { dataStore, type RegistrationUpdate } from '$lib/store/data.svelte';
 import type {
+	AdminAccount,
+	AdminInvitation,
+	EmailTemplate,
+	EmailTemplateRevision,
 	Policy,
 	PolicyRevision,
 	Race,
@@ -184,4 +188,108 @@ export async function adminListPolicyRevisions(id: string): Promise<PolicyRevisi
 		`/admin/policies/${encodeURIComponent(id)}/revisions`
 	);
 	return res.revisions ?? [];
+}
+
+// ─── Email templates (admin CRUD) ───────────────────────────────────────
+
+export type EditEmailTemplateInput = {
+	subjectSv: string;
+	bodySv: string;
+	subjectEn: string;
+	bodyEn: string;
+	note?: string;
+};
+
+export async function adminListEmailTemplates(): Promise<EmailTemplate[]> {
+	const res = await api<{ templates: EmailTemplate[] }>('/admin/email-templates');
+	return res.templates ?? [];
+}
+
+export async function adminGetEmailTemplate(slug: string): Promise<EmailTemplate> {
+	return api<EmailTemplate>(`/admin/email-templates/${encodeURIComponent(slug)}`);
+}
+
+export async function adminEditEmailTemplate(
+	slug: string,
+	input: EditEmailTemplateInput
+): Promise<EmailTemplate> {
+	return api<EmailTemplate>(`/admin/email-templates/${encodeURIComponent(slug)}`, {
+		method: 'PUT',
+		body: input
+	});
+}
+
+export async function adminPublishEmailTemplate(slug: string): Promise<EmailTemplate> {
+	return api<EmailTemplate>(`/admin/email-templates/${encodeURIComponent(slug)}/publish`, {
+		method: 'POST'
+	});
+}
+
+export async function adminArchiveEmailTemplate(slug: string): Promise<EmailTemplate> {
+	return api<EmailTemplate>(`/admin/email-templates/${encodeURIComponent(slug)}/archive`, {
+		method: 'POST'
+	});
+}
+
+export async function adminListEmailTemplateRevisions(
+	slug: string
+): Promise<EmailTemplateRevision[]> {
+	const res = await api<{ revisions: EmailTemplateRevision[] }>(
+		`/admin/email-templates/${encodeURIComponent(slug)}/revisions`
+	);
+	return res.revisions ?? [];
+}
+
+// ─── Admin users + invitations ──────────────────────────────────────────
+
+export async function adminListAdmins(): Promise<AdminAccount[]> {
+	const res = await api<{ admins: AdminAccount[] }>('/admin/users');
+	return res.admins ?? [];
+}
+
+export async function adminListInvitations(): Promise<AdminInvitation[]> {
+	const res = await api<{ invitations: AdminInvitation[] }>('/admin/users/invitations');
+	return res.invitations ?? [];
+}
+
+export type CreateInvitationInput = {
+	email: string;
+	locale?: 'sv' | 'en';
+};
+
+export async function adminCreateInvitation(
+	input: CreateInvitationInput
+): Promise<AdminInvitation> {
+	return api<AdminInvitation>('/admin/users/invitations', {
+		method: 'POST',
+		body: input
+	});
+}
+
+export async function adminRevokeInvitation(tokenId: string): Promise<void> {
+	await api<void>(`/admin/users/invitations/${encodeURIComponent(tokenId)}`, {
+		method: 'DELETE'
+	});
+}
+
+// ─── Public admin accept endpoints ──────────────────────────────────────
+
+export type AcceptPreview = {
+	email: string;
+	locale?: string;
+	invitedByMail?: string;
+};
+
+export async function fetchAcceptPreview(token: string): Promise<AcceptPreview> {
+	return api<AcceptPreview>(`/admin/accept/preview?token=${encodeURIComponent(token)}`);
+}
+
+export async function submitAcceptInvitation(
+	token: string,
+	password: string
+): Promise<{ ok: boolean; email: string }> {
+	return api<{ ok: boolean; email: string }>('/admin/accept', {
+		method: 'POST',
+		body: { token, password }
+	});
 }
