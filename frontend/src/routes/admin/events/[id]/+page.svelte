@@ -24,6 +24,7 @@
 	let raceName = $state('');
 	let distance = $state(5000);
 	let discipline = $state<Discipline>('run');
+	let maxRunners = $state(0);
 	let saving = $state(false);
 	let errorMsg = $state<string | null>(null);
 
@@ -32,6 +33,7 @@
 		raceName = '';
 		distance = 5000;
 		discipline = 'run';
+		maxRunners = 0;
 		errorMsg = null;
 	}
 
@@ -40,6 +42,7 @@
 		raceName = race.name;
 		distance = race.distanceMeters;
 		discipline = race.discipline;
+		maxRunners = race.maxRunners ?? 0;
 		errorMsg = null;
 	}
 
@@ -57,7 +60,8 @@
 				eventId: event.id,
 				name: raceName.trim(),
 				distanceMeters: Number(distance),
-				discipline
+				discipline,
+				maxRunners: Math.max(0, Math.floor(Number(maxRunners) || 0))
 			};
 			if (editing.mode === 'create') {
 				await adminCreateRace(payload);
@@ -190,6 +194,10 @@
 				</select>
 			</label>
 		</div>
+		<label class="block space-y-1">
+			<span class="text-sm font-medium">{i18n.m.admin.events.maxRunnersLabel}</span>
+			<input type="number" min="0" step="1" bind:value={maxRunners} class="input" />
+		</label>
 
 		{#if errorMsg}
 			<p class="text-sm text-error-600 dark:text-error-300">{errorMsg}</p>

@@ -25,6 +25,8 @@ export type Race = {
 	name: string;
 	distanceMeters: number;
 	discipline: Discipline;
+	// 0 (or omitted) means uncapped.
+	maxRunners?: number;
 };
 
 export type Category = {

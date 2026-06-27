@@ -449,6 +449,7 @@ type raceItem struct {
 	Name           string `dynamodbav:"name"`
 	DistanceMeters int    `dynamodbav:"distanceMeters"`
 	Discipline     string `dynamodbav:"discipline"`
+	MaxRunners     int    `dynamodbav:"maxRunners,omitempty"`
 	CreatedAt      string `dynamodbav:"createdAt"`
 }
 
@@ -460,6 +461,7 @@ func raceFromItem(item raceItem) models.Race {
 		Name:           item.Name,
 		DistanceMeters: item.DistanceMeters,
 		Discipline:     item.Discipline,
+		MaxRunners:     item.MaxRunners,
 		CreatedAt:      createdAt,
 	}
 }
@@ -531,6 +533,7 @@ func (s *DynamoStore) CreateRace(ctx context.Context, r models.Race) error {
 		Name:           r.Name,
 		DistanceMeters: r.DistanceMeters,
 		Discipline:     r.Discipline,
+		MaxRunners:     r.MaxRunners,
 		CreatedAt:      r.CreatedAt.UTC().Format(time.RFC3339),
 	})
 	if err != nil {
@@ -557,6 +560,7 @@ func (s *DynamoStore) UpdateRace(ctx context.Context, r models.Race) error {
 		Name:           r.Name,
 		DistanceMeters: r.DistanceMeters,
 		Discipline:     r.Discipline,
+		MaxRunners:     r.MaxRunners,
 		CreatedAt:      r.CreatedAt.UTC().Format(time.RFC3339),
 	})
 	if err != nil {

@@ -22,6 +22,7 @@ type RaceDTO struct {
 	Name           string `json:"name"`
 	DistanceMeters int    `json:"distanceMeters"`
 	Discipline     string `json:"discipline"`
+	MaxRunners     int    `json:"maxRunners"`
 }
 
 func raceToDTO(r models.Race) RaceDTO {
@@ -31,6 +32,7 @@ func raceToDTO(r models.Race) RaceDTO {
 		Name:           r.Name,
 		DistanceMeters: r.DistanceMeters,
 		Discipline:     r.Discipline,
+		MaxRunners:     r.MaxRunners,
 	}
 }
 
@@ -58,6 +60,7 @@ type createRaceInput struct {
 		Name           string `json:"name" minLength:"1" maxLength:"200"`
 		DistanceMeters int    `json:"distanceMeters" minimum:"1"`
 		Discipline     string `json:"discipline" enum:"run,walk,kids"`
+		MaxRunners     int    `json:"maxRunners,omitempty" minimum:"0"`
 	}
 }
 
@@ -68,6 +71,7 @@ type updateRaceInput struct {
 		Name           string `json:"name" minLength:"1" maxLength:"200"`
 		DistanceMeters int    `json:"distanceMeters" minimum:"1"`
 		Discipline     string `json:"discipline" enum:"run,walk,kids"`
+		MaxRunners     int    `json:"maxRunners,omitempty" minimum:"0"`
 	}
 }
 
@@ -150,6 +154,7 @@ func registerRaces(api huma.API, s store.Store, authCfg auth.Config) {
 			Name:           strings.TrimSpace(in.Body.Name),
 			DistanceMeters: in.Body.DistanceMeters,
 			Discipline:     in.Body.Discipline,
+			MaxRunners:     in.Body.MaxRunners,
 			CreatedAt:      time.Now().UTC(),
 		}
 		if err := s.CreateRace(ctx, r); err != nil {
@@ -187,6 +192,7 @@ func registerRaces(api huma.API, s store.Store, authCfg auth.Config) {
 			Name:           strings.TrimSpace(in.Body.Name),
 			DistanceMeters: in.Body.DistanceMeters,
 			Discipline:     in.Body.Discipline,
+			MaxRunners:     in.Body.MaxRunners,
 			CreatedAt:      existing.CreatedAt,
 		}
 		if err := s.UpdateRace(ctx, updated); err != nil {

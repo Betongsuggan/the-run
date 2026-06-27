@@ -216,6 +216,19 @@ func registerRegistrations(api huma.API, s store.Store, renderer *email.Renderer
 			}
 			return nil, fmt.Errorf("lookup race: %w", err)
 		}
+		// Enforce the optional capacity cap. The check is best-effort against
+		// concurrent registrations — DynamoDB has no atomic count-then-write,
+		// so two requests racing through here can both pass when the race is
+		// at cap-minus-one. Admins can clean up overflow via the dashboard.
+		if race.MaxRunners > 0 {
+			existing, err := s.ListRegistrationsByRace(ctx, race.ID)
+			if err != nil {
+				return nil, fmt.Errorf("count registrations: %w", err)
+			}
+			if len(existing) >= race.MaxRunners {
+				return nil, huma.Error409Conflict("this race is full")
+			}
+		}
 		event, err := s.GetEvent(ctx, race.EventID)
 		if err != nil {
 			return nil, fmt.Errorf("lookup event: %w", err)

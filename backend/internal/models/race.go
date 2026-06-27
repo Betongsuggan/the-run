@@ -8,5 +8,8 @@ type Race struct {
 	Name           string
 	DistanceMeters int
 	Discipline     string
-	CreatedAt      time.Time
+	// MaxRunners caps how many runners can self-register via the public
+	// form. Zero means unlimited. The admin path bypasses this check.
+	MaxRunners int
+	CreatedAt  time.Time
 }
