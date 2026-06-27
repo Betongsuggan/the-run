@@ -31,7 +31,7 @@ func Register(
 	registerRunners(api, s, authCfg)
 	registerAdminRegistrations(api, s, authCfg, recorder)
 	registerResults(api, s, authCfg)
-	registerGuardianConsent(api, s)
+	registerGuardianConsent(api, s, renderer)
 	registerDSR(api, s, authCfg, renderer, recorder)
 	registerPolicies(api, s)
 	registerAdminPolicies(api, s, authCfg, recorder)

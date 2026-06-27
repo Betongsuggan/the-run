@@ -31,6 +31,59 @@ type guardianConsentVars struct {
 	Link       string
 }
 
+// registrationConfirmationVars carries the race-detail fields the
+// registration-confirmation template substitutes.
+type registrationConfirmationVars struct {
+	RunnerName    string
+	EventName     string
+	EventDate     string
+	EventLocation string
+	RaceName      string
+	RaceDistance  string
+	ManageDataUrl string
+}
+
+// formatRaceDistance renders DistanceMeters as a short human string
+// ("10 km", "21.1 km", "500 m"). One decimal when the distance isn't a
+// whole kilometer; metres when under 1 km.
+func formatRaceDistance(meters int) string {
+	if meters <= 0 {
+		return ""
+	}
+	if meters < 1000 {
+		return fmt.Sprintf("%d m", meters)
+	}
+	if meters%1000 == 0 {
+		return fmt.Sprintf("%d km", meters/1000)
+	}
+	return fmt.Sprintf("%.1f km", float64(meters)/1000.0)
+}
+
+// sendRegistrationConfirmationEmail builds the variables and dispatches the
+// registration-confirmation email via the renderer. Locale comes from the
+// registering account so a parent who's set en in /my-data gets the English
+// body.
+func sendRegistrationConfirmationEmail(ctx context.Context, renderer *email.Renderer, account models.Account, runner models.Runner, race models.Race, event models.Event) error {
+	base := os.Getenv("SITE_BASE_URL")
+	if base == "" {
+		base = "https://running.rydback.net"
+	}
+	return renderer.Send(ctx, email.SendOptions{
+		Slug:   models.EmailTemplateSlugRegistrationConfirmation,
+		To:     account.Email,
+		Locale: account.Locale,
+		Vars: registrationConfirmationVars{
+			RunnerName:    runner.Name,
+			EventName:     event.Name,
+			EventDate:     event.Date,
+			EventLocation: event.Location,
+			RaceName:      race.Name,
+			RaceDistance:  formatRaceDistance(race.DistanceMeters),
+			ManageDataUrl: base + "/my-data",
+		},
+	})
+}
+
 // Per-IP rate limit on POST /registrations (GDPR A0.7). Pair the honeypot
 // (form-level) and the API Gateway stage throttle (aggregate) with a
 // sliding 1-minute window per source IP. Numbers match the plan: 5 attempts
@@ -306,6 +359,14 @@ func registerRegistrations(api huma.API, s store.Store, renderer *email.Renderer
 				// Don't fail the request — the registration is real and the
 				// admin can re-send. Log so we notice in CloudWatch.
 				log.Printf("guardian consent email failed: registrationId=%s tokenId=%s err=%v", reg.ID, tokenID, err)
+			}
+		} else {
+			// Adult path: registration is active immediately, so send the
+			// confirmation now. Under-13 confirmations fire from the
+			// guardian-consent verify handler once the parent has clicked
+			// the magic link and the status flips to received.
+			if err := sendRegistrationConfirmationEmail(ctx, renderer, *account, *runner, *race, *event); err != nil {
+				log.Printf("registration confirmation email failed: registrationId=%s err=%v", reg.ID, err)
 			}
 		}
 

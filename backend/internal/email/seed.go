@@ -28,6 +28,35 @@ type SeedTemplate struct {
 // documents the expected names for the admin UI's reference panel; the
 // renderer itself ignores it (template execution validates by parsing).
 var templateSeeds = map[models.EmailTemplateSlug]SeedTemplate{
+	models.EmailTemplateSlugRegistrationConfirmation: {
+		Slug:        models.EmailTemplateSlugRegistrationConfirmation,
+		DisplayName: "Race registration confirmation",
+		SubjectSv:   "Anmälan bekräftad: {{.EventName}} — Ingmarsöloppet",
+		BodySv: "Hej!\n\n" +
+			"Tack — vi har tagit emot din anmälan till {{.EventName}}.\n\n" +
+			"Här är detaljerna:\n\n" +
+			"  • Löpare: {{.RunnerName}}\n" +
+			"  • Klass: {{.RaceName}} ({{.RaceDistance}})\n" +
+			"  • Datum: {{.EventDate}}\n" +
+			"  • Plats: {{.EventLocation}}\n\n" +
+			"Vi mejlar dig igen närmare loppet med startnummer och praktisk information.\n\n" +
+			"Behöver du uppdatera dina uppgifter eller ångra anmälan? Du hanterar allt själv på:\n\n" +
+			"{{.ManageDataUrl}}\n\n" +
+			"Vi ses på startlinjen!\n",
+		SubjectEn: "Registration confirmed: {{.EventName}} — Ingmarsöloppet",
+		BodyEn: "Hello!\n\n" +
+			"Thanks — we've received your registration for {{.EventName}}.\n\n" +
+			"Here are the details:\n\n" +
+			"  • Runner: {{.RunnerName}}\n" +
+			"  • Race: {{.RaceName}} ({{.RaceDistance}})\n" +
+			"  • Date: {{.EventDate}}\n" +
+			"  • Location: {{.EventLocation}}\n\n" +
+			"We'll email you again closer to race day with your bib number and practical info.\n\n" +
+			"Need to update your details or cancel? You can manage everything yourself at:\n\n" +
+			"{{.ManageDataUrl}}\n\n" +
+			"See you at the start line!\n",
+		AvailableVariables: []string{"RunnerName", "EventName", "EventDate", "EventLocation", "RaceName", "RaceDistance", "ManageDataUrl"},
+	},
 	models.EmailTemplateSlugGuardianConsent: {
 		Slug:        models.EmailTemplateSlugGuardianConsent,
 		DisplayName: "Guardian consent (under-13 registration)",

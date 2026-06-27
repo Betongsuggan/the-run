@@ -3,11 +3,13 @@ package api
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/BirgerRydback/the-run/backend/internal/email"
 	"github.com/BirgerRydback/the-run/backend/internal/models"
 	"github.com/BirgerRydback/the-run/backend/internal/store"
 )
@@ -25,7 +27,7 @@ type verifyGuardianConsentOutput struct {
 	}
 }
 
-func registerGuardianConsent(api huma.API, s store.Store) {
+func registerGuardianConsent(api huma.API, s store.Store, renderer *email.Renderer) {
 	huma.Register(api, huma.Operation{
 		OperationID: "verify-guardian-consent",
 		Method:      "POST",
@@ -70,6 +72,30 @@ func registerGuardianConsent(api huma.API, s store.Store) {
 		}
 		if err := s.UpdateRegistrationStatus(ctx, token.ContextID, models.StatusReceived); err != nil {
 			return nil, err
+		}
+
+		// The registration is now active — send the confirmation email,
+		// best-effort. Failures don't affect the response (the registration
+		// state is what matters; an admin can re-send manually). Lookups are
+		// done after the status flip so a partial failure here doesn't roll
+		// the registration back to pending.
+		if reg, err := s.GetRegistrationByID(ctx, token.ContextID); err == nil && reg != nil {
+			account, accErr := s.GetAccountByID(ctx, token.AccountID)
+			runner, runErr := s.GetRunner(ctx, reg.RunnerID)
+			race, raceErr := s.GetRace(ctx, reg.RaceID)
+			var event *models.Event
+			var eventErr error
+			if raceErr == nil && race != nil {
+				event, eventErr = s.GetEvent(ctx, race.EventID)
+			}
+			if accErr == nil && runErr == nil && raceErr == nil && eventErr == nil &&
+				account != nil && runner != nil && race != nil && event != nil {
+				if err := sendRegistrationConfirmationEmail(ctx, renderer, *account, *runner, *race, *event); err != nil {
+					log.Printf("registration confirmation email failed (post-guardian): registrationId=%s err=%v", reg.ID, err)
+				}
+			} else {
+				log.Printf("registration confirmation skipped: lookup failed registrationId=%s", token.ContextID)
+			}
 		}
 
 		out := &verifyGuardianConsentOutput{}

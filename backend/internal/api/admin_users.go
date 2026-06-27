@@ -364,33 +364,60 @@ func registerAdminUsers(api huma.API, s store.Store, authCfg auth.Config, render
 			return nil, err
 		}
 
-		// Re-check email isn't taken — guards against a runner registering
-		// the same address between invite-create and invite-accept.
+		// Look up any existing account for the invited email. An invitee
+		// who's previously registered as a runner or used /my-data already
+		// has an Account row — we upgrade it in place (preserving runners,
+		// registrations, and consent history) rather than refusing.
 		existing, err := s.GetAccountByEmail(ctx, inv.Email)
 		if err != nil {
 			return nil, fmt.Errorf("lookup existing: %w", err)
 		}
-		if existing != nil {
-			return nil, huma.Error409Conflict("an account already exists for that email")
+		if existing != nil && existing.IsAdmin {
+			return nil, huma.Error409Conflict("an admin account already exists for that email")
+		}
+		if existing != nil && existing.DeletionPendingUntil != nil {
+			// They scheduled themselves for deletion; restoring is a /my-data
+			// flow they need to drive themselves before the upgrade makes sense.
+			return nil, huma.Error409Conflict("account is pending deletion — restore via /my-data before accepting the invite")
 		}
 
 		hash, err := auth.HashPassword(in.Body.Password)
 		if err != nil {
 			return nil, fmt.Errorf("hash password: %w", err)
 		}
-		account := models.Account{
-			ID:           uuid.NewString(),
-			Email:        inv.Email,
-			PasswordHash: hash,
-			IsAdmin:      true,
-			Locale:       inv.Locale,
-			CreatedAt:    now,
-		}
-		if err := s.CreateAccount(ctx, account); err != nil {
-			if errors.Is(err, store.ErrAlreadyExists) {
-				return nil, huma.Error409Conflict("an account already exists for that email")
+
+		var account models.Account
+		if existing != nil {
+			// Upgrade path: keep the existing UUID + email sentinel + linked
+			// runner records intact. Reset MFASecret defensively so the new
+			// admin enrolls TOTP fresh on first login (the standard
+			// /auth/login → enrollment branch handles this when MFASecret
+			// is empty).
+			existing.PasswordHash = hash
+			existing.IsAdmin = true
+			existing.MFASecret = ""
+			if inv.Locale != "" {
+				existing.Locale = inv.Locale
 			}
-			return nil, fmt.Errorf("create account: %w", err)
+			if err := s.UpdateAccount(ctx, *existing); err != nil {
+				return nil, fmt.Errorf("upgrade account: %w", err)
+			}
+			account = *existing
+		} else {
+			account = models.Account{
+				ID:           uuid.NewString(),
+				Email:        inv.Email,
+				PasswordHash: hash,
+				IsAdmin:      true,
+				Locale:       inv.Locale,
+				CreatedAt:    now,
+			}
+			if err := s.CreateAccount(ctx, account); err != nil {
+				if errors.Is(err, store.ErrAlreadyExists) {
+					return nil, huma.Error409Conflict("an account already exists for that email")
+				}
+				return nil, fmt.Errorf("create account: %w", err)
+			}
 		}
 
 		// Mark the invitation used; failure here is non-fatal — the

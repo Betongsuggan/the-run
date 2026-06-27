@@ -19,18 +19,20 @@ const (
 type EmailTemplateSlug string
 
 const (
-	EmailTemplateSlugGuardianConsent     EmailTemplateSlug = "guardian-consent"
-	EmailTemplateSlugDSRAccess           EmailTemplateSlug = "dsr-access"
-	EmailTemplateSlugDSREmailChange      EmailTemplateSlug = "dsr-email-change"
-	EmailTemplateSlugDSRRestore          EmailTemplateSlug = "dsr-restore"
-	EmailTemplateSlugRetentionInactivity EmailTemplateSlug = "retention-inactivity"
-	EmailTemplateSlugAdminInvite         EmailTemplateSlug = "admin-invite"
+	EmailTemplateSlugRegistrationConfirmation EmailTemplateSlug = "registration-confirmation"
+	EmailTemplateSlugGuardianConsent          EmailTemplateSlug = "guardian-consent"
+	EmailTemplateSlugDSRAccess                EmailTemplateSlug = "dsr-access"
+	EmailTemplateSlugDSREmailChange           EmailTemplateSlug = "dsr-email-change"
+	EmailTemplateSlugDSRRestore               EmailTemplateSlug = "dsr-restore"
+	EmailTemplateSlugRetentionInactivity      EmailTemplateSlug = "retention-inactivity"
+	EmailTemplateSlugAdminInvite              EmailTemplateSlug = "admin-invite"
 )
 
 // KnownEmailTemplateSlugs is the canonical, in-code-order list. Used by the
 // seed routine, by admin endpoints that enumerate templates, and by validation
 // that an unknown slug never reaches the renderer.
 var KnownEmailTemplateSlugs = []EmailTemplateSlug{
+	EmailTemplateSlugRegistrationConfirmation,
 	EmailTemplateSlugGuardianConsent,
 	EmailTemplateSlugDSRAccess,
 	EmailTemplateSlugDSREmailChange,
