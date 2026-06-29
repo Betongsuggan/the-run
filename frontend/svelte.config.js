@@ -1,6 +1,26 @@
 import adapter from '@sveltejs/adapter-static';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
+// Extract the origin (scheme + host) from PUBLIC_API_BASE_URL so the CSP
+// connect-src matches whatever API base URL the bundle is being built for.
+// Returns [] when the env var is unset (dev `pnpm build` without an exported
+// var) or when the URL is same-origin (covered by 'self'). svelte.config.js
+// runs in plain Node before Vite loads .env files, so we read process.env
+// directly — the prod build recipe in Justfile exports the var explicitly.
+function apiConnectSrc() {
+	const raw = process.env.PUBLIC_API_BASE_URL;
+	if (!raw) return [];
+	try {
+		const url = new URL(raw);
+		if (url.protocol === 'http:' || url.protocol === 'https:') {
+			return [`${url.protocol}//${url.host}`];
+		}
+	} catch {
+		/* unparseable — fall through */
+	}
+	return [];
+}
+
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	preprocess: vitePreprocess(),
@@ -25,7 +45,9 @@ const config = {
 		// is still blocked by the strict script-src.
 		//
 		// connect-src lists the production API origin explicitly so
-		// XHR/fetch from the built site reaches the Lambda. Local dev
+		// XHR/fetch from the built site reaches the Lambda. The origin
+		// is taken from PUBLIC_API_BASE_URL at build time (the prod
+		// recipe in Justfile sets this from Pulumi config). Local dev
 		// hits :8080 via the SvelteKit dev server, which doesn't
 		// enforce CSP in dev mode.
 		//
@@ -40,7 +62,7 @@ const config = {
 				'style-src': ['self', 'unsafe-inline'],
 				'font-src': ['self', 'data:'],
 				'img-src': ['self', 'data:'],
-				'connect-src': ['self', 'https://api.rydback.net'],
+				'connect-src': ['self', ...apiConnectSrc()],
 				'frame-ancestors': ['none'],
 				'base-uri': ['self'],
 				'form-action': ['self'],
